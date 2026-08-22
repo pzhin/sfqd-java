@@ -135,6 +135,33 @@ The job identifier must be unique among currently live jobs. Rejected
 admissions are atomic no-ops: they do not consume a sequence number or mutate
 tags, queues, counters, or indexes.
 
+### Admission policy boundary
+
+SFQ(D) fairness starts after successful admission: the scheduler distributes
+issue slots among jobs that `enqueue` has already accepted. `maxFlows` and
+`maxLiveJobs` are global safety bounds, not a fair admission policy.
+
+The core does not provide per-flow queue limits, per-flow live-cost limits,
+capacity reserved for other flows, or fair selection among admission attempts.
+One flow can therefore fill the entire `maxLiveJobs` allowance. Until capacity
+is released, another flow's `enqueue` call returns `LIVE_LIMIT` before SFQ(D)
+dispatch fairness can apply.
+
+Applications that need admission isolation should enforce it before calling
+the scheduler. For example, a PostgreSQL integration can keep per-class limits
+in its application layer:
+
+```text
+application admission policy
+  global/per-class queue and cost limits, optional reserves
+                         |
+                         v
+                    SFQ(D) enqueue
+                         |
+                         v
+              fair dispatch of accepted jobs
+```
+
 ### Offer capacity
 
 `capacityAvailable(k)` returns an immutable batch of up to `k` jobs, bounded
