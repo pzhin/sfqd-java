@@ -43,6 +43,9 @@ final class ReferenceScheduler<F, J, P> {
     RegisterFlowResult registerFlow(F flowId, long weight) {
         Objects.requireNonNull(flowId, "flowId");
         requirePositive(weight, "weight");
+        if (!config.weightDomain().permits(weight)) {
+            return RegisterFlowResult.Rejected.WEIGHT_OUTSIDE_DOMAIN;
+        }
         if (registeredById.containsKey(flowId)) {
             return RegisterFlowResult.Rejected.DUPLICATE_REGISTERED_ID;
         }

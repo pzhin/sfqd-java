@@ -31,7 +31,8 @@ final class PublicArtifactSurfaceTest {
             "io.github.pzhin.sfqd.RegisterFlowResult$Rejected",
             "io.github.pzhin.sfqd.SchedulerConfig",
             "io.github.pzhin.sfqd.SchedulerSnapshot",
-            "io.github.pzhin.sfqd.SfqdScheduler");
+            "io.github.pzhin.sfqd.SfqdScheduler",
+            "io.github.pzhin.sfqd.WeightDomain");
 
     @Test
     void exposesOnlyTheSpecifiedPublicTypes() throws IOException, URISyntaxException {

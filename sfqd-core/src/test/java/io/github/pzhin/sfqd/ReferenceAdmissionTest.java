@@ -33,6 +33,20 @@ final class ReferenceAdmissionTest {
     }
 
     @Test
+    void registrationEnforcesConfiguredWeightDomainBeforeOtherOperationalLimits() {
+        SchedulerConfig config = new SchedulerConfig(
+                1, 1, 1, CancellationAccounting.CHARGE_RESERVED_COST, WeightDomain.divisorsOf(8L));
+        ReferenceScheduler<String, String, Object> model = new ReferenceScheduler<>(config);
+
+        assertEquals(RegisterFlowResult.Rejected.WEIGHT_OUTSIDE_DOMAIN, model.registerFlow("outside", 3L));
+        FlowHandle flow = registered(model.registerFlow("inside", 4L));
+        assertEquals(RegisterFlowResult.Rejected.WEIGHT_OUTSIDE_DOMAIN, model.registerFlow("inside", 3L));
+        assertEquals(RegisterFlowResult.Rejected.FLOW_LIMIT, model.registerFlow("full", 2L));
+        assertEquals(1, model.snapshot().registeredFlows());
+        assertEquals(CloseFlowResult.CLOSED, model.closeFlow(flow));
+    }
+
+    @Test
     void enqueueCalculatesExactTagsAndAppliesAdmissionChecksInOrder() {
         ReferenceScheduler<String, String, Object> model = model(1, 2, 2);
         FlowHandle flow = registered(model.registerFlow("flow", 3L));

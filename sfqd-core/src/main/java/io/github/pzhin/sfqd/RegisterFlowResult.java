@@ -28,6 +28,8 @@ public sealed interface RegisterFlowResult {
         DUPLICATE_REGISTERED_ID,
         /** The configured registration limit is full. */
         FLOW_LIMIT,
+        /** The weight is outside the configured weight domain. */
+        WEIGHT_OUTSIDE_DOMAIN,
         /** The lifetime flow sequence has been exhausted. */
         FLOW_SEQUENCE_EXHAUSTED
     }

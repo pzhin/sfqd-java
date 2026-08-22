@@ -36,7 +36,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * {@code O(queuedJobs + registeredFlows)} and is computed transactionally before it becomes observable. Internal
  * records are bounded by configured live-job and registration limits; terminal tombstones are not retained.
  *
- * <p>Weights and costs are positive {@code long} values in {@code [1, Long.MAX_VALUE]}. Tags are exact reduced
+ * <p>Weights and costs are positive {@code long} values in {@code [1, Long.MAX_VALUE]}. A configured
+ * {@link WeightDomain} may further restrict registered weights to divisors of one common scale, preventing new
+ * denominator factors from accumulating across flows. Tags are exact reduced
  * non-negative rationals: each numerator and denominator retained in scheduler state has bit length at most 4096,
  * and each canonical raw or reduced component of an exact primitive has bit length at most 8193. No rounding or
  * floating-point fallback is permitted. If a newly computed start or finish tag first exceeds the persistent budget,
@@ -86,6 +88,9 @@ public final class SfqdScheduler<F, J, P> {
      *
      * <p>A success linearizes at insertion into both registration indexes and sequence advancement. A rejection
      * linearizes at the first applicable check and does not mutate state or consume a sequence.
+     * A divisor-constrained {@link WeightDomain} returns
+     * {@link RegisterFlowResult.Rejected#WEIGHT_OUTSIDE_DOMAIN} before identity, capacity, and sequence checks when
+     * the positive weight does not divide the configured common scale.
      *
      * @param flowId stable non-null flow identifier
      * @param weight fixed registration weight in {@code [1, Long.MAX_VALUE]}
@@ -98,6 +103,9 @@ public final class SfqdScheduler<F, J, P> {
         requirePositive(weight, "weight");
         lock.lock();
         try {
+            if (!config.weightDomain().permits(weight)) {
+                return RegisterFlowResult.Rejected.WEIGHT_OUTSIDE_DOMAIN;
+            }
             if (registeredById.containsKey(flowId)) {
                 return RegisterFlowResult.Rejected.DUPLICATE_REGISTERED_ID;
             }

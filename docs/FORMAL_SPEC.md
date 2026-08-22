@@ -47,6 +47,11 @@ The operation is not a notification that capacity has become available.
 - `cost` — the supplied job cost, an integer in `1..Long.MAX_VALUE`.
 - `weight` — the flow weight, an integer in `1..Long.MAX_VALUE`.
 
+The configured `weightDomain` MAY retain that unrestricted syntactic domain or
+restrict successful registration to positive divisors of one fixed common
+scale `W` in `1..Long.MAX_VALUE`. A weight outside the configured domain is an
+operational registration rejection, not an invalid Java argument.
+
 `FlowId` and `JobId` MUST honor the Java `equals/hashCode` contract throughout
 the stated lifetime. Both methods MUST be deterministic, side-effect-free, and
 non-reentrant with respect to the scheduler; they MUST NOT invoke scheduler
@@ -69,8 +74,10 @@ Fairness is defined in terms of `cost`, not unknown actual execution time.
   `D..Integer.MAX_VALUE`.
 - `cancellationAccounting` — the fixed policy
   `CancellationAccounting.CHARGE_RESERVED_COST`; no alternative policy exists.
+- `weightDomain` — either unrestricted positive `long` weights or the positive
+  divisors of one fixed common scale `W`.
 
-All four values are immutable after instance construction. Null values,
+All five values are immutable after instance construction. Null values,
 out-of-range values, and `maxLiveJobs < D` are rejected before an observable
 instance exists.
 
@@ -172,9 +179,9 @@ transaction. Silent overflow, rounding, partial rebase, and order changes are
 forbidden.
 
 When `V=0` and `lastFinish=0`, a registered flow MUST accept one job with any
-`cost,weight` pair in `1..Long.MAX_VALUE`, including the maximum values, unless
-an independent identity or live-item limit applies: a single reduced fraction
-occupies at most 63 bits in either component.
+`cost` in `1..Long.MAX_VALUE` and its already accepted registration weight,
+unless an independent identity or live-item limit applies: a single reduced
+fraction occupies at most 63 bits in either component.
 
 The number of successfully accepted jobs over an instance lifetime is limited
 to `Long.MAX_VALUE`. State stores `lastJobSequence` in
@@ -205,6 +212,23 @@ transient tag bits 0..8193 per exact primitive component
 The number of read-only and failed calls is not limited by scheduler state. The
 number of successful cancel, dispatch, and complete calls is limited by the
 number of accepted incarnations.
+
+### 3.2.1 Divisor-constrained weight domain
+
+For `weightDomain = divisorsOf(W)`, registration accepts a weight `w` only when
+`W mod w = 0`. For every accepted job, the reduced denominator of
+`cost / weight` therefore divides `W`. The set of rational numbers whose
+reduced denominators divide `W` is closed under exact addition, subtraction,
+and maximum. It follows inductively that every stored `S`, `F`, `V`,
+`lastFinish`, and every exact rebase result has a reduced denominator dividing
+`W`; distinct registered weights cannot accumulate new prime denominator
+factors.
+
+This is a denominator-safety property, not an infinite-lifetime numeric
+guarantee. Numerators remain subject to the 4096-bit persistent budget, and the
+charge-reserved cancellation policy can accumulate finish-tag debt during a
+continuous busy period. `NUMERIC_LIMIT` therefore remains a permitted enqueue
+result under a divisor-constrained domain.
 
 ### 3.3 Exact rebasing
 
@@ -504,16 +528,17 @@ consistently.
 Order of processing:
 
 1. Validate a non-null `flowId` and `weight` in `1..Long.MAX_VALUE`.
-2. If `flowId` is in `RegisteredById`, return
+2. If `weight` is outside `weightDomain`, return `WEIGHT_OUTSIDE_DOMAIN`.
+3. If `flowId` is in `RegisteredById`, return
    `DUPLICATE_REGISTERED_ID`.
-3. If the registered count equals `maxFlows`, return `FLOW_LIMIT`.
-4. If `lastFlowSequence == Long.MAX_VALUE`, return
+4. If the registered count equals `maxFlows`, return `FLOW_LIMIT`.
+5. If `lastFlowSequence == Long.MAX_VALUE`, return
    `FLOW_SEQUENCE_EXHAUSTED`.
-5. Create an inert `FlowHandle(ownerToken,lastFlowSequence+1)` and FlowState
+6. Create an inert `FlowHandle(ownerToken,lastFlowSequence+1)` and FlowState
    with `lastFinish=0`, zero counts, `acceptedCost=0`, `dispatchedCost=0`,
    `cancelledCost=0`, `runningSuppliedCost=0`, and the fixed weight; insert
    both registration indexes and update the sequence.
-6. Return `REGISTERED(flowHandle)`.
+7. Return `REGISTERED(flowHandle)`.
 
 Registration during a non-empty busy period is allowed: it does not affect
 scheduling before the first enqueue. A rejection leaves state unchanged and
@@ -937,7 +962,7 @@ not transitively retain the scheduler.
 | Batch dispatch | Filling depth is described without API atomicity | One call selects a sequential SFQ(D) batch but linearizes as a whole |
 | Completion order | Black-box server | Any running handle may complete; the scheduler imposes no completion order |
 | Weight changes | Undefined | Weight is fixed for the registration lifetime; change requires safe close and a new registration |
-| Numbers | Mathematical unbounded tags | Exact canonical rationals, fail-closed 4096-bit persistent and 8193-bit transient budgets, and transactional all-registration rebase |
+| Numbers | Mathematical unbounded tags | Exact canonical rationals, fail-closed 4096-bit persistent and 8193-bit transient budgets, transactional all-registration rebase, and an optional common-scale divisor weight domain that prevents new denominator factors but does not bound numerators or cancellation debt |
 | Retention | Not considered | Payload release, no terminal metadata, and `maxLiveJobs` and `maxFlows` bounds |
 | Introspection | Not considered | Exact atomic aggregate and per-registration lifecycle snapshots without tags, identifiers, or a clock |
 | Executor rejection | Not considered | Dispatch is irrevocable; the caller must complete, and requeue is a new enqueue |
@@ -956,6 +981,15 @@ confirm against the unbounded candidate that the formal persistent or transient
 budget is genuinely violated after the one permitted transactional rebase; the
 production state remains unchanged, and oracle state is rolled back so the
 shared trace can continue.
+
+The production regression suite MUST include a public-operation-only trace in
+the unrestricted domain with `D=2`, `maxFlows=70`, `maxLiveJobs=3`, one running
+unit-weight anchor, and 69 consecutive prime weights above `2^60`. Two visits
+of two unit-cost jobs per fractional flow MUST reproduce the bounded numeric
+failure after 273 total successful admissions and MUST verify that the rejected
+enqueue is an atomic no-op. The same prime weights MUST be rejected at
+registration by a divisor-constrained domain whose common scale they do not
+divide.
 
 When no such expected rejection occurs, the reference model and production
 implementation MUST agree on:

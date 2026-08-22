@@ -52,7 +52,8 @@ public final class CoreArtifactVerifier {
             "io.github.pzhin.sfqd.RegisterFlowResult$Rejected",
             "io.github.pzhin.sfqd.SchedulerConfig",
             "io.github.pzhin.sfqd.SchedulerSnapshot",
-            "io.github.pzhin.sfqd.SfqdScheduler");
+            "io.github.pzhin.sfqd.SfqdScheduler",
+            "io.github.pzhin.sfqd.WeightDomain");
 
     private CoreArtifactVerifier() {
     }
