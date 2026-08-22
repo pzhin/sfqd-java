@@ -19,6 +19,7 @@ public final class SchedulerBenchmarkSupport {
     static final Payload PAYLOAD = Payload.INSTANCE;
     static final int[] POWERS_OF_TWO = {1, 2, 4, 8, 16, 32};
     static final int[] COSTS = {1, 2, 4, 8, 16, 32, 64};
+    static final int MAX_PAIRWISE_COPRIME_FLOWS = 10_000;
 
     private SchedulerBenchmarkSupport() {
     }
@@ -33,8 +34,18 @@ public final class SchedulerBenchmarkSupport {
         ALL_BACKLOGGED,
         /** Flow weights repeat {@code 1,2,4,8,16,32}. */
         SKEWED_WEIGHTS,
+        /** Every active flow receives a distinct prime weight. */
+        PAIRWISE_COPRIME_WEIGHTS,
         /** Job costs repeat {@code 1,2,4,8,16,32,64}. */
         SKEWED_COSTS
+    }
+
+    /** Weight populations used by the explicit performance-scale matrix. */
+    public enum WeightModel {
+        /** Every flow has weight one. */
+        EQUAL,
+        /** Every flow receives a distinct prime weight, making all weights pairwise coprime. */
+        PAIRWISE_COPRIME
     }
 
     /**
@@ -222,8 +233,21 @@ public final class SchedulerBenchmarkSupport {
     }
 
     static long weight(int flowIndex, Scenario scenario) {
+        if (scenario == Scenario.PAIRWISE_COPRIME_WEIGHTS) {
+            return weight(flowIndex, WeightModel.PAIRWISE_COPRIME);
+        }
         return scenario == Scenario.SKEWED_WEIGHTS
                 ? POWERS_OF_TWO[flowIndex % POWERS_OF_TWO.length] : 1L;
+    }
+
+    static long weight(int flowIndex, WeightModel weightModel) {
+        if (weightModel == WeightModel.EQUAL) {
+            return 1L;
+        }
+        if (flowIndex < 0 || flowIndex >= PairwiseCoprimeWeights.VALUES.length) {
+            throw new IllegalArgumentException("pairwise-coprime flow index is outside the benchmark matrix");
+        }
+        return PairwiseCoprimeWeights.VALUES[flowIndex];
     }
 
     static int expectedActiveFlows(int flowCount, Scenario scenario) {
@@ -266,5 +290,34 @@ public final class SchedulerBenchmarkSupport {
             }
         }
         throw new IllegalStateException("dispatched handle absent from caller model");
+    }
+
+    private static final class PairwiseCoprimeWeights {
+        private static final int SIEVE_LIMIT = 110_000;
+        private static final int[] VALUES = generate();
+
+        private PairwiseCoprimeWeights() {
+        }
+
+        private static int[] generate() {
+            boolean[] composite = new boolean[SIEVE_LIMIT + 1];
+            int[] primes = new int[MAX_PAIRWISE_COPRIME_FLOWS + 1];
+            int count = 0;
+            for (int candidate = 2; candidate <= SIEVE_LIMIT && count < primes.length; candidate++) {
+                if (composite[candidate]) {
+                    continue;
+                }
+                primes[count++] = candidate;
+                if ((long) candidate * candidate <= SIEVE_LIMIT) {
+                    for (int multiple = candidate * candidate; multiple <= SIEVE_LIMIT; multiple += candidate) {
+                        composite[multiple] = true;
+                    }
+                }
+            }
+            if (count != primes.length) {
+                throw new IllegalStateException("prime sieve does not cover the benchmark flow matrix");
+            }
+            return primes;
+        }
     }
 }

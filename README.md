@@ -18,6 +18,11 @@ harness are complete. The source branch uses the pre-release coordinates
 `io.github.pzhin.sfqd`. No artifact has been published to a public Maven
 repository yet.
 
+The benchmark harness is an executable measurement protocol, not a benchmark
+result. This repository intentionally contains no raw machine-specific runs,
+so production throughput, latency, allocation rate, retained heap, and a
+practical maximum batch size have not been established.
+
 The project is licensed under the
 [Apache License, Version 2.0](LICENSE).
 
@@ -295,6 +300,13 @@ An enqueue may perform one transactional normalization when exact tags approach
 their numeric budget. If the result still cannot fit, it returns
 `NUMERIC_LIMIT` without changing scheduler state.
 
+`1_000_000` is a representation and validation limit for `issueDepth`, not a
+practically tested scale. One `capacityAvailable(k)` call is atomic, holds the
+scheduler's internal serialization boundary for the whole selection, and may
+create up to `k` `Dispatch` objects. The repository's measurement matrix stops
+at depth `1_024`; even within that matrix, no performance claim exists until a
+recorded run is reviewed for the target hardware and workload.
+
 ## Complexity
 
 Let `R` be registered flows, `Q` queued jobs, `B` backlogged flows, and `m` the
@@ -325,7 +337,7 @@ not retained as tombstones.
 # Bounded JVM concurrency suite
 ./mvnw --batch-mode --no-transfer-progress -Pjcstress clean verify
 
-# Build JMH and run the fixture smoke matrix
+# Build JMH and run bounded fixture smoke checks
 ./mvnw --batch-mode --no-transfer-progress -Pbenchmarks clean verify
 
 # List available JMH workloads without running a long benchmark
@@ -333,8 +345,10 @@ java -jar sfqd-benchmarks/target/sfqd-benchmarks.jar -l
 ```
 
 The JMH and jcstress modules are verification tools, not runtime dependencies.
-This release branch intentionally does not contain raw machine-specific
-performance runs.
+CI packages and discovers the harness, validates representative fixture states,
+and runs one 100 ms JMH wiring check. None of those steps is a performance
+measurement. See the workload guide for the decision-bearing scale matrix and
+measurement protocol.
 
 ## Further documentation
 

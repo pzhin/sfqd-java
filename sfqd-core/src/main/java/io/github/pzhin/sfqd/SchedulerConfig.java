@@ -26,7 +26,12 @@ public record SchedulerConfig(
         int maxFlows,
         int maxLiveJobs,
         CancellationAccounting cancellationAccounting) {
-    /** Maximum supported issue depth. */
+    /**
+     * Maximum representable and validated issue depth.
+     *
+     * <p>This configuration boundary is not a claim that an atomic dispatch at this depth has practical
+     * throughput, latency, allocation, or lock-hold characteristics for a particular deployment.
+     */
     public static final int MAX_DEPTH = 1_000_000;
 
     /**
