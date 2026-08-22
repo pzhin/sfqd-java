@@ -50,6 +50,7 @@
     <project.build.outputTimestamp>2026-08-20T08:00:22Z</project.build.outputTimestamp>
     <maven.compiler.release>25</maven.compiler.release>
     <maven.deploy.skip>false</maven.deploy.skip>
+    <sfqd.harness.execution.skip>false</sfqd.harness.execution.skip>
     <checkstyle.version>14.0.0</checkstyle.version>
     <jacoco.version>0.8.15</jacoco.version>
     <jcstress.version>0.16</jcstress.version>

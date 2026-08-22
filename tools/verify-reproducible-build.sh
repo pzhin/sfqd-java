@@ -50,22 +50,30 @@ sha256_file() {
 
 discover_expected_artifacts() {
   local worktree_path=$1
+  local canonical_worktree_path
   local discovery
   local role
   local artifact_path
+  local canonical_artifact_path
   local discovered_count=0
 
-  discovery=$("${worktree_path}/tools/verify-core-artifacts.sh" discover \
-    "${worktree_path}/sfqd-core/target" "${JAVA_HOME:+${JAVA_HOME}/bin/}jar") \
+  canonical_worktree_path=$(cd "${worktree_path}" && pwd -P) \
+    || fail "cannot resolve build worktree path"
+  discovery=$("${JAVA_HOME:+${JAVA_HOME}/bin/}java" \
+    -cp "${worktree_path}/sfqd-core/target/test-classes" \
+    io.github.pzhin.sfqd.build.CoreArtifactVerifier \
+    --discover "${worktree_path}/sfqd-core/target") \
     || fail "cannot discover core artifacts by content"
   while IFS=$'\t' read -r role artifact_path; do
     case "${role}" in
       binary|sources|javadoc) ;;
       *) fail "unexpected discovered core artifact role: ${role}" ;;
     esac
-    [[ "${artifact_path}" == "${worktree_path}"/* ]] \
+    canonical_artifact_path=$(cd "$(dirname "${artifact_path}")" && pwd -P)/$(basename "${artifact_path}") \
+      || fail "cannot resolve discovered core artifact path"
+    [[ "${canonical_artifact_path}" == "${canonical_worktree_path}"/* ]] \
       || fail "discovered core artifact escapes the build worktree"
-    EXPECTED_ARTIFACTS+=("${artifact_path#"${worktree_path}"/}")
+    EXPECTED_ARTIFACTS+=("${canonical_artifact_path#"${canonical_worktree_path}"/}")
     ((discovered_count += 1))
   done <<<"${discovery}"
   [[ ${discovered_count} -eq 3 ]] || fail "expected three content-identified core artifacts"

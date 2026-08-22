@@ -94,7 +94,8 @@ PY
   LC_ALL=C LANG=C TZ=UTC ./mvnw --batch-mode --no-transfer-progress \
     -Pbenchmarks,jcstress \
     -DaltDeploymentRepository="publication-smoke::${DEPLOY_REPOSITORY_URI}" \
-    -Dexec.skip=true -Djacoco.skip=true -DskipTests -Dspotbugs.skip=true \
+    -Dsfqd.harness.execution.skip=true \
+    -Djacoco.skip=true -DskipTests -Dspotbugs.skip=true \
     clean deploy
 )
 
