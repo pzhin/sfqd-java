@@ -52,6 +52,7 @@
     <checkstyle.version>14.0.0</checkstyle.version>
     <jacoco.version>0.8.15</jacoco.version>
     <jcstress.version>0.16</jcstress.version>
+    <jmh.version>1.37</jmh.version>
     <jqwik.version>1.9.3</jqwik.version>
     <junit.version>5.13.1</junit.version>
     <spotbugs.version>4.10.3</spotbugs.version>
@@ -250,6 +251,10 @@
     <profile>
       <id>jcstress</id>
       <modules><module>sfqd-jcstress</module></modules>
+    </profile>
+    <profile>
+      <id>benchmarks</id>
+      <modules><module>sfqd-benchmarks</module></modules>
     </profile>
   </profiles>
 
