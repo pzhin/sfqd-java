@@ -297,7 +297,9 @@ public final class SfqdScheduler<F, J, P> {
                 queued.remove(job.handle);
                 virtualTime = job.start;
                 flow.runningCount++;
-                flow.dispatchedCost = flow.dispatchedCost.add(BigInteger.valueOf(job.cost));
+                BigInteger suppliedCost = BigInteger.valueOf(job.cost);
+                flow.dispatchedCost = flow.dispatchedCost.add(suppliedCost);
+                flow.runningSuppliedCost = flow.runningSuppliedCost.add(suppliedCost);
                 running.put(job.handle, new RunningJob<>(job.jobId, flow.handle, job.cost));
                 dispatched++;
                 result.add(new Dispatch<>(job.handle, job.jobId, flow.flowId, job.payload, job.cost));
@@ -335,6 +337,7 @@ public final class SfqdScheduler<F, J, P> {
                 throw new IllegalStateException("running flow registration invariant violated");
             }
             flow.runningCount--;
+            flow.runningSuppliedCost = flow.runningSuppliedCost.subtract(BigInteger.valueOf(job.cost));
             if (flow.queuedCount + flow.runningCount == 0) {
                 activeFlowCount--;
             }
@@ -385,7 +388,7 @@ public final class SfqdScheduler<F, J, P> {
             }
             return Optional.of(new FlowSnapshot(
                     flow.queuedCount, flow.runningCount,
-                    flow.acceptedCost, flow.dispatchedCost, flow.cancelledCost));
+                    flow.acceptedCost, flow.dispatchedCost, flow.cancelledCost, flow.runningSuppliedCost));
         } finally {
             lock.unlock();
         }
@@ -545,6 +548,7 @@ public final class SfqdScheduler<F, J, P> {
         private BigInteger acceptedCost = BigInteger.ZERO;
         private BigInteger dispatchedCost = BigInteger.ZERO;
         private BigInteger cancelledCost = BigInteger.ZERO;
+        private BigInteger runningSuppliedCost = BigInteger.ZERO;
 
         private FlowState(FlowHandle handle, F flowId, long weight) {
             this.handle = handle;

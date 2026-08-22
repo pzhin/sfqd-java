@@ -135,18 +135,22 @@ final class ApiVocabularyTest {
         assertFalse(Arrays.stream(SchedulerSnapshot.class.getDeclaredConstructors())
                 .anyMatch(constructor -> Modifier.isPublic(constructor.getModifiers())));
         FlowSnapshot flowSnapshot = new FlowSnapshot(
-                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE);
+                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE, BigInteger.valueOf(2L));
         assertEquals(3, flowSnapshot.queuedJobs());
         assertEquals(4, flowSnapshot.runningJobs());
         assertEquals(BigInteger.TEN, flowSnapshot.acceptedCost());
         assertEquals(BigInteger.valueOf(6L), flowSnapshot.dispatchedCost());
         assertEquals(BigInteger.ONE, flowSnapshot.cancelledCost());
         assertEquals(BigInteger.valueOf(3L), flowSnapshot.queuedCost());
+        assertEquals(BigInteger.valueOf(2L), flowSnapshot.runningSuppliedCost());
+        assertEquals(BigInteger.valueOf(4L), flowSnapshot.completedSuppliedCost());
         assertTrue(flowSnapshot.toString().contains("acceptedCost=10"));
+        assertTrue(flowSnapshot.toString().contains("runningSuppliedCost=2"));
         assertEquals(flowSnapshot, new FlowSnapshot(
-                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE));
+                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE, BigInteger.valueOf(2L)));
         assertEquals(flowSnapshot.hashCode(), new FlowSnapshot(
-                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE).hashCode());
+                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE,
+                BigInteger.valueOf(2L)).hashCode());
         assertFalse(Arrays.stream(FlowSnapshot.class.getDeclaredConstructors())
                 .anyMatch(constructor -> Modifier.isPublic(constructor.getModifiers())));
         assertFalse(Arrays.stream(RegisterFlowResult.Registered.class.getDeclaredConstructors())

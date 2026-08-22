@@ -126,7 +126,9 @@ final class ReferenceScheduler<F, J, P> {
             FlowState<F> flow = registeredFlows.get(job.flowHandle);
             flow.queuedCount--;
             flow.runningCount++;
-            flow.dispatchedCost = flow.dispatchedCost.add(BigInteger.valueOf(job.cost));
+            BigInteger suppliedCost = BigInteger.valueOf(job.cost);
+            flow.dispatchedCost = flow.dispatchedCost.add(suppliedCost);
+            flow.runningSuppliedCost = flow.runningSuppliedCost.add(suppliedCost);
             running.put(handle, new RunningJob<>(handle, job.jobId, job.flowHandle, job.cost));
             dispatched++;
             result.add(new Dispatch<>(handle, job.jobId, job.flowId, job.payload, job.cost));
@@ -159,6 +161,7 @@ final class ReferenceScheduler<F, J, P> {
         liveById.remove(job.jobId);
         FlowState<F> flow = registeredFlows.get(job.flowHandle);
         flow.runningCount--;
+        flow.runningSuppliedCost = flow.runningSuppliedCost.subtract(BigInteger.valueOf(job.cost));
         completed++;
         resetIfIdle();
         return CompletionResult.COMPLETED;
@@ -188,7 +191,7 @@ final class ReferenceScheduler<F, J, P> {
                 ? Optional.empty()
                 : Optional.of(new FlowSnapshot(
                         flow.queuedCount, flow.runningCount,
-                        flow.acceptedCost, flow.dispatchedCost, flow.cancelledCost));
+                        flow.acceptedCost, flow.dispatchedCost, flow.cancelledCost, flow.runningSuppliedCost));
     }
 
     List<JobHandle> queuedHandles() {
@@ -275,6 +278,7 @@ final class ReferenceScheduler<F, J, P> {
         private BigInteger acceptedCost = BigInteger.ZERO;
         private BigInteger dispatchedCost = BigInteger.ZERO;
         private BigInteger cancelledCost = BigInteger.ZERO;
+        private BigInteger runningSuppliedCost = BigInteger.ZERO;
 
         private FlowState(F flowId, long weight) {
             this.flowId = flowId;

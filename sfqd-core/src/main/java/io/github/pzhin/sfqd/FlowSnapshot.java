@@ -10,18 +10,21 @@ public final class FlowSnapshot {
     private final BigInteger acceptedCost;
     private final BigInteger dispatchedCost;
     private final BigInteger cancelledCost;
+    private final BigInteger runningSuppliedCost;
 
     FlowSnapshot(
             int queuedJobs,
             int runningJobs,
             BigInteger acceptedCost,
             BigInteger dispatchedCost,
-            BigInteger cancelledCost) {
+            BigInteger cancelledCost,
+            BigInteger runningSuppliedCost) {
         this.queuedJobs = queuedJobs;
         this.runningJobs = runningJobs;
         this.acceptedCost = Objects.requireNonNull(acceptedCost, "acceptedCost");
         this.dispatchedCost = Objects.requireNonNull(dispatchedCost, "dispatchedCost");
         this.cancelledCost = Objects.requireNonNull(cancelledCost, "cancelledCost");
+        this.runningSuppliedCost = Objects.requireNonNull(runningSuppliedCost, "runningSuppliedCost");
     }
 
     /**
@@ -34,16 +37,16 @@ public final class FlowSnapshot {
     }
 
     /**
-     * Returns the current dispatched-job count for the flow.
+     * Returns the current running-job count for the flow.
      *
-     * @return current dispatched jobs
+     * @return current running jobs
      */
     public int runningJobs() {
         return runningJobs;
     }
 
     /**
-     * Returns the exact cumulative cost of successfully accepted jobs for the flow registration.
+     * Returns the exact cumulative supplied cost of successfully accepted jobs for the flow registration.
      *
      * @return cumulative accepted cost units
      */
@@ -52,7 +55,7 @@ public final class FlowSnapshot {
     }
 
     /**
-     * Returns the exact cumulative cost of jobs dispatched for the flow registration.
+     * Returns the exact cumulative supplied cost of jobs dispatched for the flow registration.
      *
      * @return cumulative dispatched cost units
      */
@@ -61,12 +64,34 @@ public final class FlowSnapshot {
     }
 
     /**
-     * Returns the exact cumulative cost of successfully cancelled jobs for the flow registration.
+     * Returns the exact cumulative supplied cost of successfully cancelled jobs for the flow registration.
      *
      * @return cumulative cancelled cost units
      */
     public BigInteger cancelledCost() {
         return cancelledCost;
+    }
+
+    /**
+     * Returns the exact supplied cost of jobs currently running for the flow.
+     *
+     * <p>This is the caller-supplied service estimate from enqueue, not elapsed or actual execution time.
+     *
+     * @return current in-flight supplied cost units
+     */
+    public BigInteger runningSuppliedCost() {
+        return runningSuppliedCost;
+    }
+
+    /**
+     * Returns the exact cumulative supplied cost of completed jobs for the flow.
+     *
+     * <p>This is derived as dispatched supplied cost minus current running supplied cost.
+     *
+     * @return cumulative completed supplied cost units
+     */
+    public BigInteger completedSuppliedCost() {
+        return dispatchedCost.subtract(runningSuppliedCost);
     }
 
     /**
@@ -93,12 +118,14 @@ public final class FlowSnapshot {
                 && runningJobs == snapshot.runningJobs
                 && acceptedCost.equals(snapshot.acceptedCost)
                 && dispatchedCost.equals(snapshot.dispatchedCost)
-                && cancelledCost.equals(snapshot.cancelledCost);
+                && cancelledCost.equals(snapshot.cancelledCost)
+                && runningSuppliedCost.equals(snapshot.runningSuppliedCost);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queuedJobs, runningJobs, acceptedCost, dispatchedCost, cancelledCost);
+        return Objects.hash(
+                queuedJobs, runningJobs, acceptedCost, dispatchedCost, cancelledCost, runningSuppliedCost);
     }
 
     @Override
@@ -107,6 +134,7 @@ public final class FlowSnapshot {
                 + ", runningJobs=" + runningJobs
                 + ", acceptedCost=" + acceptedCost
                 + ", dispatchedCost=" + dispatchedCost
-                + ", cancelledCost=" + cancelledCost + ']';
+                + ", cancelledCost=" + cancelledCost
+                + ", runningSuppliedCost=" + runningSuppliedCost + ']';
     }
 }
