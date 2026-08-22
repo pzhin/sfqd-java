@@ -183,8 +183,8 @@ class SfqdDifferentialProperties {
             List<String> expectedIds) {
         assertEquals(expectedIds, expected.stream().map(Dispatch::jobId).toList());
         assertEquals(expectedIds, actual.stream().map(Dispatch::jobId).toList());
-        assertSame(expected.getFirst().payload(), actual.getFirst().payload());
-        assertEquals(expected.getFirst().cost(), actual.getFirst().cost());
+        assertSame(expected.get(0).payload(), actual.get(0).payload());
+        assertEquals(expected.get(0).cost(), actual.get(0).cost());
     }
 
     private record FlowPair(FlowHandle reference, FlowHandle production) {

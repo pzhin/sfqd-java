@@ -48,7 +48,7 @@ class SfqdWaveLinearizabilityStressTest {
         List<List<Observation>> permutations = legalPermutations(List.of(first, second));
 
         assertEquals(1, permutations.size());
-        assertEquals(List.of(first, second), permutations.getFirst());
+        assertEquals(List.of(first, second), permutations.get(0));
     }
 
     @Test
@@ -69,7 +69,7 @@ class SfqdWaveLinearizabilityStressTest {
         List<List<Observation>> permutations = legalPermutations(List.of(first, second, snapshot));
 
         assertEquals(2, permutations.size());
-        assertTrue(permutations.stream().allMatch(order -> order.getLast() == snapshot));
+        assertTrue(permutations.stream().allMatch(order -> order.get(order.size() - 1) == snapshot));
     }
 
     @Test
@@ -131,7 +131,8 @@ class SfqdWaveLinearizabilityStressTest {
         int nextFlow = 1;
         int nextJob = 1;
         long acceptedCount = 0L;
-        try (ExecutorService executor = Executors.newFixedThreadPool(3)) {
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
             for (int wave = 0; wave < 40; wave++) {
                 int actors = wave % 2 == 0 ? 2 : 3;
                 List<Invocation> invocations = new ArrayList<>();
@@ -208,7 +209,7 @@ class SfqdWaveLinearizabilityStressTest {
                         "frontier cap exceeded: " + next.size()));
                 frontier = List.copyOf(next.values());
                 SchedulerSnapshot snapshot = assertInstanceOf(
-                        SchedulerSnapshot.class, observations.getLast().result());
+                        SchedulerSnapshot.class, observations.get(observations.size() - 1).result());
                 String diagnostic = failure(
                         seed, depth, wave, observedWaves, frontier, flowLogical, jobLogical, "invariant");
                 assertTrue(cancelled.stream().noneMatch(dispatched::contains), diagnostic);
@@ -222,6 +223,8 @@ class SfqdWaveLinearizabilityStressTest {
                 assertTrue(snapshot.registeredFlows() <= config.maxFlows(), diagnostic);
                 assertTrue(snapshot.queuedJobs() + snapshot.runningJobs() <= config.maxLiveJobs(), diagnostic);
             }
+        } finally {
+            executor.shutdownNow();
         }
         assertEquals(EnumSet.allOf(Command.class), exercised,
                 "fixed stress schedule must exercise the complete public operation vocabulary");
@@ -407,7 +410,7 @@ class SfqdWaveLinearizabilityStressTest {
                 used[index] = true;
                 current.add(source.get(index));
                 permute(source, used, current, result);
-                current.removeLast();
+                current.remove(current.size() - 1);
                 used[index] = false;
             }
         }

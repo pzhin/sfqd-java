@@ -156,10 +156,10 @@ final class ReferenceLifecycleProperties {
                         model.enqueue(foreignFlow, -2, -2, 1L));
                 return;
             }
-            int jobId = terminalIds.getLast();
+            int jobId = terminalIds.get(terminalIds.size() - 1);
             FlowHandle flow = flows.values().stream().findFirst().orElse(foreignFlow);
             if (enqueue(flow, jobId)) {
-                terminalIds.removeLast();
+                terminalIds.remove(terminalIds.size() - 1);
             }
         }
 

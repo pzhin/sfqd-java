@@ -299,7 +299,7 @@ cat >"${CONSUMER_ROOT}/pom.xml" <<EOF
   <artifactId>consumer</artifactId>
   <version>1</version>
   <properties>
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.release>17</maven.compiler.release>
   </properties>
   <repositories>
     <repository>

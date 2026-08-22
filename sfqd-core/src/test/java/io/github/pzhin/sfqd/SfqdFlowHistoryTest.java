@@ -20,7 +20,7 @@ class SfqdFlowHistoryTest {
         JobHandle chargedNext = accepted(scheduler.enqueue(charged, "charged-next", new Object(), 1L));
 
         for (int index = 0; index < 5; index++) {
-            Dispatch<String, String, Object> selected = scheduler.dispatchUpTo(1).getFirst();
+            Dispatch<String, String, Object> selected = scheduler.dispatchUpTo(1).get(0);
             assertEquals(competingNext, selected.jobHandle());
             assertEquals("competing-" + index, selected.jobId());
             assertEquals(CompletionResult.COMPLETED, scheduler.complete(selected.jobHandle()));
@@ -30,7 +30,7 @@ class SfqdFlowHistoryTest {
             }
         }
 
-        assertEquals(chargedNext, scheduler.dispatchUpTo(1).getFirst().jobHandle());
+        assertEquals(chargedNext, scheduler.dispatchUpTo(1).get(0).jobHandle());
     }
 
     @Test
@@ -46,17 +46,17 @@ class SfqdFlowHistoryTest {
             anchorJobs.add(accepted(
                     scheduler.enqueue(anchor, "anchor-" + index, new Object(), 1L)));
         }
-        assertEquals(historicalJob, scheduler.dispatchUpTo(1).getFirst().jobHandle());
+        assertEquals(historicalJob, scheduler.dispatchUpTo(1).get(0).jobHandle());
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(historicalJob));
 
         assertEquals(CloseFlowResult.FAIRNESS_DEBT_ACTIVE, scheduler.closeFlow(historical));
         for (int index = 0; index < 10; index++) {
-            Dispatch<String, String, Object> anchorJob = scheduler.dispatchUpTo(1).getFirst();
+            Dispatch<String, String, Object> anchorJob = scheduler.dispatchUpTo(1).get(0);
             assertEquals(anchorJobs.get(index), anchorJob.jobHandle());
             assertEquals("anchor-" + index, anchorJob.jobId());
             assertEquals(CompletionResult.COMPLETED, scheduler.complete(anchorJob.jobHandle()));
         }
-        Dispatch<String, String, Object> frontier = scheduler.dispatchUpTo(1).getFirst();
+        Dispatch<String, String, Object> frontier = scheduler.dispatchUpTo(1).get(0);
         assertEquals(anchorJobs.get(10), frontier.jobHandle());
         assertEquals("anchor-10", frontier.jobId());
 
@@ -77,14 +77,14 @@ class SfqdFlowHistoryTest {
         Object freshPayload = new Object();
         JobHandle runningHandle = accepted(
                 scheduler.enqueue(historical, "historical-running", runningPayload, 10L));
-        Dispatch<String, String, Object> running = scheduler.dispatchUpTo(1).getFirst();
+        Dispatch<String, String, Object> running = scheduler.dispatchUpTo(1).get(0);
         assertEquals(runningHandle, running.jobHandle());
         assertSame(runningPayload, running.payload());
         JobHandle historicalNext = accepted(
                 scheduler.enqueue(historical, "historical-next", historicalPayload, 1L));
         JobHandle freshJob = accepted(scheduler.enqueue(fresh, "fresh", freshPayload, 1L));
 
-        Dispatch<String, String, Object> selected = scheduler.dispatchUpTo(1).getFirst();
+        Dispatch<String, String, Object> selected = scheduler.dispatchUpTo(1).get(0);
 
         assertEquals(freshJob, selected.jobHandle());
         assertEquals("fresh", selected.jobId());
@@ -112,7 +112,7 @@ class SfqdFlowHistoryTest {
                 scheduler.enqueue(historical, "historical-return", historicalPayload, 1L));
         JobHandle freshJob = accepted(scheduler.enqueue(fresh, "fresh", freshPayload, 1L));
 
-        Dispatch<String, String, Object> selected = scheduler.dispatchUpTo(1).getFirst();
+        Dispatch<String, String, Object> selected = scheduler.dispatchUpTo(1).get(0);
 
         assertEquals(freshJob, selected.jobHandle());
         assertEquals("fresh", selected.jobId());

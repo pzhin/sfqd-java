@@ -37,7 +37,7 @@ class SfqdLongRunNumericAccumulationTest {
                 referenceAccepted,
                 productionAccepted);
         DispatchPair anchorDispatch = dispatchOne(reference, production, 0L);
-        assertEquals(anchorJob, anchorDispatch.jobs.getFirst());
+        assertEquals(anchorJob, anchorDispatch.jobs.get(0));
 
         int maximumReferenceDenominatorBits = 0;
         long dispatchEvent = 1L;
@@ -54,11 +54,11 @@ class SfqdLongRunNumericAccumulationTest {
                         productionAccepted);
 
                 DispatchPair firstDispatch = dispatchOne(reference, production, dispatchEvent++);
-                assertEquals(first, firstDispatch.jobs.getFirst());
+                assertEquals(first, firstDispatch.jobs.get(0));
                 completePair(reference, production, first);
 
                 DispatchPair secondDispatch = dispatchOne(reference, production, dispatchEvent++);
-                assertEquals(second, secondDispatch.jobs.getFirst());
+                assertEquals(second, secondDispatch.jobs.get(0));
                 completePair(reference, production, second);
 
                 maximumReferenceDenominatorBits = Math.max(
@@ -68,7 +68,7 @@ class SfqdLongRunNumericAccumulationTest {
                         "aggregate drift after round=" + round + ", flowIndex=" + flowIndex);
             }
 
-            FlowPair lowerWeight = flows.getFirst();
+            FlowPair lowerWeight = flows.get(0);
             FlowPair higherWeight = flows.get(1);
             JobPair lowerFirst = recordUnique(
                     enqueuePair(reference, production, lowerWeight, nextJobId++, 1L),
@@ -88,7 +88,7 @@ class SfqdLongRunNumericAccumulationTest {
                     productionAccepted);
             List<JobPair> exactProbeOrder = List.of(lowerFirst, higherFirst, higherSecond, lowerSecond);
             for (JobPair expected : exactProbeOrder) {
-                assertEquals(expected, dispatchOne(reference, production, dispatchEvent++).jobs.getFirst(),
+                assertEquals(expected, dispatchOne(reference, production, dispatchEvent++).jobs.get(0),
                         "cross-flow exact-order drift in round " + round);
                 completePair(reference, production, expected);
             }
@@ -179,8 +179,8 @@ class SfqdLongRunNumericAccumulationTest {
         List<Dispatch<String, Long, Payload>> actual = production.dispatchUpTo(1);
         assertEquals(1, expected.size(), "reference failed to dispatch at event " + event);
         assertEquals(1, actual.size(), "production failed to dispatch at event " + event);
-        Dispatch<String, Long, Payload> expectedDispatch = expected.getFirst();
-        Dispatch<String, Long, Payload> actualDispatch = actual.getFirst();
+        Dispatch<String, Long, Payload> expectedDispatch = expected.get(0);
+        Dispatch<String, Long, Payload> actualDispatch = actual.get(0);
         assertEquals(expectedDispatch.jobId(), actualDispatch.jobId(), "job-order drift at event " + event);
         assertEquals(expectedDispatch.flowId(), actualDispatch.flowId(), "flow-order drift at event " + event);
         assertSame(expectedDispatch.payload(), actualDispatch.payload(), "payload drift at event " + event);

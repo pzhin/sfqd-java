@@ -48,10 +48,10 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.build.outputTimestamp>2026-08-20T08:00:22Z</project.build.outputTimestamp>
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.release>17</maven.compiler.release>
     <maven.deploy.skip>false</maven.deploy.skip>
     <sfqd.harness.execution.skip>false</sfqd.harness.execution.skip>
-    <checkstyle.version>14.0.0</checkstyle.version>
+    <checkstyle.version>12.3.1</checkstyle.version>
     <jacoco.version>0.8.15</jacoco.version>
     <jcstress.version>0.16</jcstress.version>
     <jmh.version>1.37</jmh.version>
@@ -191,8 +191,8 @@
             <configuration>
               <rules>
                 <requireJavaVersion>
-                  <version>[25,26)</version>
-                  <message>Build with the current LTS JDK 25.</message>
+                  <version>[17,)</version>
+                  <message>Build with JDK 17 or newer.</message>
                 </requireJavaVersion>
                 <requireMavenVersion>
                   <version>[3.9.16,4)</version>

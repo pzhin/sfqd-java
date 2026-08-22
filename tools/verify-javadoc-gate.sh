@@ -36,7 +36,7 @@ run_mutated_build() {
   shift
   if (
     cd "$WORKTREE"
-    JAVA_HOME="${JAVA_HOME:?JAVA_HOME must point to JDK 25}" \
+    JAVA_HOME="${JAVA_HOME:?JAVA_HOME must point to JDK 17 or newer}" \
       ./mvnw --batch-mode --no-transfer-progress \
       -pl sfqd-core -am -DskipTests "$@" package
   ) >"$log" 2>&1; then

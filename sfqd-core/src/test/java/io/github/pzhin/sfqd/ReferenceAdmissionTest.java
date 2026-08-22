@@ -23,7 +23,7 @@ final class ReferenceAdmissionTest {
         registered(model.registerFlow("third", 1L));
         assertEquals(1, model.snapshot().activeFlows());
         assertEquals(1, model.snapshot().backloggedFlows());
-        assertSame(job, model.queuedHandles().getFirst());
+        assertSame(job, model.queuedHandles().get(0));
 
         ReferenceScheduler<String, String, Object> foreign = model(1, 1, 1);
         FlowHandle foreignHandle = registered(foreign.registerFlow("foreign", 1L));

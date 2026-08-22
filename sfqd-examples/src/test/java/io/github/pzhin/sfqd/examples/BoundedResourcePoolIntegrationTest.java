@@ -117,7 +117,7 @@ class BoundedResourcePoolIntegrationTest {
                 new BoundedResourcePoolIntegration<>(scheduler, pool, 1);
 
         assertEquals(0, integration.onResourcesAvailable(1));
-        terminals.getFirst().run();
+        terminals.get(0).run();
         assertEquals(0, scheduler.snapshot().runningJobs());
     }
 
