@@ -66,8 +66,11 @@ time.
   `1..Integer.MAX_VALUE`.
 - `maxLiveJobs` — явный предел `queued + dispatched`, целое
   `D..Integer.MAX_VALUE`.
+- `cancellationAccounting` — фиксированная policy
+  `CancellationAccounting.CHARGE_RESERVED_COST`; альтернативная policy
+  отсутствует.
 
-После создания instance все три значения неизменяемы. Null, выход за диапазон
+После создания instance все четыре значения неизменяемы. Null, выход за диапазон
 и `maxLiveJobs < D` отвергаются до создания observable instance.
 
 ### 2.3 Отображение D на N ресурсов

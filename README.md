@@ -150,6 +150,39 @@ capacity is available.
 `cancel(jobHandle)` succeeds only while the job is still queued. Once a job is
 dispatched, it must be completed.
 
+#### Cancellation accounting
+
+The only supported policy is
+`CancellationAccounting.CHARGE_RESERVED_COST`. Cancelling a queued job removes
+it from the queue and live-job indexes and releases its payload, but it does
+not roll back the job's reserved virtual cost:
+
+- the flow's `lastFinish` tag is not reduced;
+- tags already assigned to later jobs of the flow are not recomputed;
+- the charge disappears only when the scheduler becomes globally idle and
+  ends the current busy period.
+
+Consequently, completed-work fairness guarantees do not apply to any trace
+containing cancellation. Treat frequent deadline or timeout cancellations as
+a release blocker for an integration unless the resulting virtual charge and
+dispatch delay are acceptable for that workload.
+
+For example, consider two equal-weight flows in a new busy period. Keeping a
+job from B live prevents an idle reset:
+
+```text
+A: enqueue cost=1_000_000
+B: enqueue cost=1
+A: cancel the cost=1_000_000 job
+A: enqueue cost=1
+B: after each dispatch, enqueue another cost=1 job
+```
+
+A's new job has start tag `1_000_000`. B's jobs have start tags `0` through
+`999_999`, so one million B jobs can be dispatched first even though A's
+cancelled job received no service. If cancellation instead removes the last
+live job globally, the immediate idle reset clears this charge.
+
 ### Close a flow
 
 `closeFlow(flowHandle)` succeeds only for an inactive flow and only while the
@@ -184,11 +217,24 @@ identifier objects must keep stable, deterministic, non-throwing `equals` and
 
 ## Configuration
 
-`SchedulerConfig(issueDepth, maxFlows, maxLiveJobs)` enforces:
+`SchedulerConfig(issueDepth, maxFlows, maxLiveJobs)` selects
+`CHARGE_RESERVED_COST` and enforces:
 
 - `issueDepth`: `1..1_000_000`;
 - `maxFlows`: `1..Integer.MAX_VALUE`;
 - `maxLiveJobs`: `issueDepth..Integer.MAX_VALUE`.
+
+The four-argument form makes the policy explicit:
+
+```java
+new SchedulerConfig(
+        issueDepth,
+        maxFlows,
+        maxLiveJobs,
+        CancellationAccounting.CHARGE_RESERVED_COST);
+```
+
+No free-cancellation accounting policy is currently implemented.
 
 Weights and costs are positive `long` values. Choose `D` as the number of jobs
 your execution layer can have issued but not completed. For `N` identical

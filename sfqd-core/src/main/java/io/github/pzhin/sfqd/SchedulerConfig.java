@@ -1,7 +1,9 @@
 package io.github.pzhin.sfqd;
 
+import java.util.Objects;
+
 /**
- * Immutable limits for one scheduler instance.
+ * Immutable limits and accounting policy for one scheduler instance.
  *
  * <p>The supported public ranges are {@code depth} in
  * {@code [1, 1_000_000]}, {@code maxFlows} in
@@ -17,10 +19,26 @@ package io.github.pzhin.sfqd;
  *        {@code [1, Integer.MAX_VALUE]}
  * @param maxLiveJobs maximum queued plus running jobs, in
  *        {@code [depth, Integer.MAX_VALUE]}
+ * @param cancellationAccounting virtual fairness accounting policy for cancelled queued jobs
  */
-public record SchedulerConfig(int depth, int maxFlows, int maxLiveJobs) {
+public record SchedulerConfig(
+        int depth,
+        int maxFlows,
+        int maxLiveJobs,
+        CancellationAccounting cancellationAccounting) {
     /** Maximum supported issue depth. */
     public static final int MAX_DEPTH = 1_000_000;
+
+    /**
+     * Creates a configuration using {@link CancellationAccounting#CHARGE_RESERVED_COST}.
+     *
+     * @param depth maximum outstanding issue depth, in {@code [1, 1_000_000]}
+     * @param maxFlows maximum simultaneously registered flows, in {@code [1, Integer.MAX_VALUE]}
+     * @param maxLiveJobs maximum queued plus running jobs, in {@code [depth, Integer.MAX_VALUE]}
+     */
+    public SchedulerConfig(int depth, int maxFlows, int maxLiveJobs) {
+        this(depth, maxFlows, maxLiveJobs, CancellationAccounting.CHARGE_RESERVED_COST);
+    }
 
     /**
      * Validates and creates a configuration.
@@ -31,11 +49,14 @@ public record SchedulerConfig(int depth, int maxFlows, int maxLiveJobs) {
      *        {@code [1, Integer.MAX_VALUE]}
      * @param maxLiveJobs maximum queued plus running jobs, in
      *        {@code [depth, Integer.MAX_VALUE]}
+     * @param cancellationAccounting virtual fairness accounting policy for cancelled queued jobs
      * @throws IllegalArgumentException if depth is outside {@code [1, 1_000_000]},
      *         maxFlows is outside {@code [1, Integer.MAX_VALUE]}, or
      *         maxLiveJobs is outside {@code [depth, Integer.MAX_VALUE]}
+     * @throws NullPointerException if cancellationAccounting is null
      */
     public SchedulerConfig {
+        Objects.requireNonNull(cancellationAccounting, "cancellationAccounting");
         if (depth < 1 || depth > MAX_DEPTH) {
             throw new IllegalArgumentException("depth must be in [1, 1_000_000]");
         }

@@ -26,6 +26,17 @@ final class ApiVocabularyTest {
     }
 
     @Test
+    void configMakesCancellationAccountingExplicit() {
+        SchedulerConfig defaultConfig = new SchedulerConfig(8, 10, 20);
+        SchedulerConfig explicitConfig = new SchedulerConfig(
+                8, 10, 20, CancellationAccounting.CHARGE_RESERVED_COST);
+
+        assertEquals(CancellationAccounting.CHARGE_RESERVED_COST, defaultConfig.cancellationAccounting());
+        assertEquals(defaultConfig, explicitConfig);
+        assertEquals(1, CancellationAccounting.values().length);
+    }
+
+    @Test
     void handlesAreOpaqueInertCapabilitiesWithOwnerScopedEquality() {
         OwnerToken firstOwner = new OwnerToken();
         OwnerToken secondOwner = new OwnerToken();
