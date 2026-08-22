@@ -52,10 +52,26 @@ This command blocks on:
 - at least 80% line coverage for all `sfqd-core` production classes;
 - SpotBugs at maximum effort with zero allowed findings;
 - JavaDoc errors or warnings;
-- exact binary/source/JavaDoc artifact contents and public API surface.
+- exact binary/source/JavaDoc artifact contents;
+- the checked-in public API signature manifest, including public types, public/protected members,
+  generic signatures, modifiers, record components, and sealed permitted subclasses.
 
 The Java artifact verifier also inserts the project license into the source and
-JavaDoc JARs without invoking platform-specific archive tools.
+JavaDoc JARs without invoking platform-specific archive tools. Both the unit
+gate and artifact verifier compare compiled output with
+`sfqd-core/src/main/api/public-api.txt`; adding a documented public member to an
+existing type therefore fails the build. Before the first release, regenerate
+the candidate manifest after compilation with:
+
+```shell
+java -cp sfqd-core/target/test-classes:sfqd-core/target/classes \
+  io.github.pzhin.sfqd.build.PublicApiManifest sfqd-core/target/classes
+```
+
+Review and commit the output only for an intentional API change. After `0.1.0`,
+artifact-to-artifact compatibility checking with Revapi or japicmp should use
+the previous published release as its baseline; the manifest remains the
+fail-closed exact-surface gate for the current release line.
 
 `tools/verify-javadoc-gate.sh` adds an undocumented public class, constructor,
 and method in a detached worktree. The build must fail at the JavaDoc goal. A

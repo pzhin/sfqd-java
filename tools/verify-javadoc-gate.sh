@@ -55,6 +55,25 @@ is_javadoc_failure() {
     grep -Fq 'UndocumentedPublicApi.java:7: warning: no comment' "$log"
 }
 
+is_artifact_api_failure() {
+  local log=$1
+  grep -Fq \
+    'exec-maven-plugin:3.6.3:java (verify-published-core-artifacts)' \
+    "$log" &&
+    grep -Fq \
+      'binary JAR public API signatures differ from the checked-in manifest' \
+      "$log" &&
+    grep -Fq \
+      'TYPE name=io.github.pzhin.sfqd.UndocumentedPublicApi kind=class' \
+      "$log" &&
+    grep -Fq \
+      'CONSTRUCTOR owner=io.github.pzhin.sfqd.UndocumentedPublicApi modifiers=[public]' \
+      "$log" &&
+    grep -Fq \
+      'METHOD owner=io.github.pzhin.sfqd.UndocumentedPublicApi name=value modifiers=[public]' \
+      "$log"
+}
+
 if run_mutated_build "$LOG"; then
   echo "ERROR: undocumented public API passed the JavaDoc gate" >&2
   exit 1
@@ -77,12 +96,7 @@ if is_javadoc_failure "$BYPASS_LOG"; then
   exit 1
 fi
 
-if ! grep -Fq \
-    'exec-maven-plugin:3.6.3:java (verify-published-core-artifacts)' \
-    "$BYPASS_LOG" ||
-    ! grep -Fq \
-      'binary JAR public type surface differs from the specified API' \
-      "$BYPASS_LOG"; then
+if ! is_artifact_api_failure "$BYPASS_LOG"; then
   echo "ERROR: disabled-gate mutation failed for an unexpected reason" >&2
   sed -n '1,240p' "$BYPASS_LOG" >&2
   exit 1
