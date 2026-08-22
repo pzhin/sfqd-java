@@ -55,7 +55,7 @@ public class SameIdentifierEnqueueStress {
    */
   @Arbiter
   public void report(IIIII_Result result) {
-    var dispatches = scheduler.capacityAvailable(1);
+    var dispatches = scheduler.dispatchUpTo(1);
     SchedulerSnapshot snapshot = scheduler.snapshot();
     result.r3 = dispatches.size();
     if (dispatches.isEmpty()) {

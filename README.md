@@ -103,7 +103,7 @@ if (!(admitted instanceof EnqueueResult.Accepted)) {
 }
 
 for (Dispatch<String, String, Runnable> dispatch
-        : scheduler.capacityAvailable(4)) {
+        : scheduler.dispatchUpTo(4)) {
     try {
         dispatch.payload().run();
     } finally {
@@ -115,9 +115,14 @@ for (Dispatch<String, String, Runnable> dispatch
 }
 ```
 
-`capacityAvailable(k)` does not reserve future permits. Every returned job is
+`dispatchUpTo(k)` does not reserve future permits. Every returned job is
 already dispatched and must eventually be completed, even when submission to
 your executor fails.
+
+For a real executor or connection pool, use a pump that couples external
+capacity to dispatch and runs after every accepted enqueue, every completion,
+and every external capacity signal. See the
+[production executor pump example](docs/EXECUTOR_INTEGRATION.md).
 
 ## Public operations
 
@@ -162,16 +167,17 @@ application admission policy
               fair dispatch of accepted jobs
 ```
 
-### Offer capacity
+### Dispatch jobs
 
-`capacityAvailable(k)` returns an immutable batch of up to `k` jobs, bounded
-by configured issue depth `D`, available issue slots, and queue size. A
+`dispatchUpTo(k)` returns an immutable batch of up to `k` jobs, bounded
+by configured issue depth `D`, available issue slots, and queue size. The name
+describes an irreversible state transition, not a capacity notification. A
 non-empty batch is one atomic scheduling decision.
 
 ### Complete or cancel
 
 `complete(jobHandle)` releases a slot held by a dispatched job. It does not
-automatically dispatch a replacement; call `capacityAvailable` again when
+automatically dispatch a replacement; call `dispatchUpTo` again when
 capacity is available.
 
 `cancel(jobHandle)` succeeds only while the job is still queued. Once a job is
@@ -339,6 +345,7 @@ performance runs.
 ## Further documentation
 
 - [Practical and normative operation contract](docs/FORMAL_SPEC.md)
+- [Production executor pump integration](docs/EXECUTOR_INTEGRATION.md)
 - [Theory in plain language and full papers](docs/THEORY.md)
 - [Build, CI, artifact, and publication checks](docs/TOOLING.md)
 - [Benchmark workload guide](sfqd-benchmarks/README.md)

@@ -275,17 +275,17 @@ public final class SfqdScheduler<F, J, P> {
      * successful cancellation of that handle. A later {@link CancelResult#NOT_LIVE} alone does not identify which
      * terminal operation occurred; callers determine the winner from the combined dispatch/cancel/completion history.
      *
-     * @param capacity maximum jobs requested by this call, in {@code [0, depth]}
+     * @param maxJobs maximum jobs to dispatch in this call, in {@code [0, depth]}
      * @return immutable detached list in actual dispatch order
-     * @throws IllegalArgumentException if capacity is outside {@code [0, depth]}
+     * @throws IllegalArgumentException if maxJobs is outside {@code [0, depth]}
      */
-    public List<Dispatch<F, J, P>> capacityAvailable(int capacity) {
-        if (capacity < 0 || capacity > config.depth()) {
-            throw new IllegalArgumentException("capacity must be in [0, depth]");
+    public List<Dispatch<F, J, P>> dispatchUpTo(int maxJobs) {
+        if (maxJobs < 0 || maxJobs > config.depth()) {
+            throw new IllegalArgumentException("maxJobs must be in [0, depth]");
         }
         lock.lock();
         try {
-            int count = Math.min(capacity, Math.min(config.depth() - running.size(), queued.size()));
+            int count = Math.min(maxJobs, Math.min(config.depth() - running.size(), queued.size()));
             List<Dispatch<F, J, P>> result = new ArrayList<>(count);
             for (int index = 0; index < count; index++) {
                 QueuedJob<F, J, P> job = backlogged.pollFirst();

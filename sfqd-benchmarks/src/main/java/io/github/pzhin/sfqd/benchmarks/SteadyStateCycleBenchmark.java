@@ -67,7 +67,7 @@ public class SteadyStateCycleBenchmark {
         }
 
         int cycle(int capacity) {
-            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = fixture().scheduler().capacityAvailable(capacity);
+            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = fixture().scheduler().dispatchUpTo(capacity);
             if (dispatches.size() != capacity) {
                 throw new IllegalStateException("expected full cycle batch of " + capacity);
             }

@@ -31,8 +31,8 @@ class SfqdNumericBoundaryTest {
         FlowHandles referenceFlows = registerFour(reference);
         JobHandle running = accepted(scheduler.enqueue(productionFlows.anchor, "anchor", "anchor-p", 1L));
         JobHandle referenceRunning = accepted(reference.enqueue(referenceFlows.anchor, "anchor", "anchor-p", 1L));
-        scheduler.capacityAvailable(1);
-        reference.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
+        reference.dispatchUpTo(1);
         JobHandle a1 = accepted(scheduler.enqueue(productionFlows.first, "a1", "a1-p", 1L));
         JobHandle a2 = accepted(scheduler.enqueue(productionFlows.first, "a2", "a2-p", 1L));
         JobHandle b1 = accepted(scheduler.enqueue(productionFlows.second, "b1", "b1-p", 1L));
@@ -79,12 +79,12 @@ class SfqdNumericBoundaryTest {
                 BigInteger.ONE.shiftLeft(4095).subtract(BigInteger.ONE), BigInteger.ONE);
         NumericProbe.setReferenceLastFinish(reference, referenceFlows.target, referenceTargetStart);
         reference.enqueue(referenceFlows.target, "target", "target-p", 1L);
-        DispatchPair first = assertDispatches(reference.capacityAvailable(1), scheduler.capacityAvailable(1));
+        DispatchPair first = assertDispatches(reference.dispatchUpTo(1), scheduler.dispatchUpTo(1));
         assertEquals(reference.complete(referenceRunning), scheduler.complete(running));
         complete(reference, scheduler, first);
-        DispatchPair middle = assertDispatches(reference.capacityAvailable(2), scheduler.capacityAvailable(2));
+        DispatchPair middle = assertDispatches(reference.dispatchUpTo(2), scheduler.dispatchUpTo(2));
         complete(reference, scheduler, middle);
-        DispatchPair last = assertDispatches(reference.capacityAvailable(2), scheduler.capacityAvailable(2));
+        DispatchPair last = assertDispatches(reference.dispatchUpTo(2), scheduler.dispatchUpTo(2));
         complete(reference, scheduler, last);
         assertEquals(reference.snapshot(), scheduler.snapshot());
     }
@@ -150,7 +150,7 @@ class SfqdNumericBoundaryTest {
                 new SfqdScheduler<>(new SchedulerConfig(2, 4, 8));
         FlowHandles flows = registerFour(scheduler);
         scheduler.enqueue(flows.anchor, "anchor", "anchor-p", 1L);
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
         scheduler.enqueue(flows.first, "a1", "a1-p", 1L);
         scheduler.enqueue(flows.first, "a2", "a2-p", 1L);
         scheduler.enqueue(flows.second, "b1", "b1-p", 1L);

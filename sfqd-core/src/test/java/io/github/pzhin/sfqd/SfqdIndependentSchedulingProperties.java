@@ -48,7 +48,7 @@ class SfqdIndependentSchedulingProperties {
         int[] completedByFlow = new int[flows.size()];
         Set<JobHandle> dispatchedHandles = new HashSet<>();
         for (int selected = 0; selected < observationJobs; selected++) {
-            Dispatch<String, String, Payload> dispatch = scheduler.capacityAvailable(1).getFirst();
+            Dispatch<String, String, Payload> dispatch = scheduler.dispatchUpTo(1).getFirst();
             assertTrue(acceptedHandles.contains(dispatch.jobHandle()));
             assertTrue(dispatchedHandles.add(dispatch.jobHandle()));
             assertSame(payloads.get(dispatch.jobHandle()), dispatch.payload());
@@ -67,7 +67,7 @@ class SfqdIndependentSchedulingProperties {
     }
 
     @Property(tries = 180)
-    void capacityAvailableReturnsExactWorkConservingCount(
+    void dispatchUpToReturnsExactWorkConservingCount(
             @ForAll @IntRange(min = 1, max = 16) int depth,
             @ForAll @IntRange(min = 2, max = 6) int flowCount,
             @ForAll int stateCode) {
@@ -91,12 +91,12 @@ class SfqdIndependentSchedulingProperties {
         int initialRunning = Math.floorMod(Integer.rotateRight(stateCode, 7), Math.min(depth, totalJobs) + 1);
         Set<JobHandle> dispatchedHandles = new HashSet<>();
         assertDispatchIdentity(
-                scheduler.capacityAvailable(initialRunning), acceptedHandles, payloads, dispatchedHandles);
+                scheduler.dispatchUpTo(initialRunning), acceptedHandles, payloads, dispatchedHandles);
         SchedulerSnapshot before = scheduler.snapshot();
         int requested = Math.floorMod(Integer.rotateLeft(stateCode, 11), depth + 1);
         int expected = Math.min(requested, Math.min(depth - before.runningJobs(), before.queuedJobs()));
 
-        List<Dispatch<String, String, Payload>> selected = scheduler.capacityAvailable(requested);
+        List<Dispatch<String, String, Payload>> selected = scheduler.dispatchUpTo(requested);
 
         assertEquals(expected, selected.size());
         assertDispatchIdentity(selected, acceptedHandles, payloads, dispatchedHandles);
@@ -122,7 +122,7 @@ class SfqdIndependentSchedulingProperties {
             payloads.put(handle, payload);
         }
         Set<JobHandle> dispatchedHandles = new HashSet<>();
-        List<Dispatch<String, String, Payload>> initial = scheduler.capacityAvailable(depth);
+        List<Dispatch<String, String, Payload>> initial = scheduler.dispatchUpTo(depth);
         assertEquals(depth, initial.size());
         assertDispatchIdentity(initial, acceptedHandles, payloads, dispatchedHandles);
 
@@ -135,7 +135,7 @@ class SfqdIndependentSchedulingProperties {
             }
         }
 
-        List<Dispatch<String, String, Payload>> refill = scheduler.capacityAvailable(depth);
+        List<Dispatch<String, String, Payload>> refill = scheduler.dispatchUpTo(depth);
         assertEquals(completed, refill.size());
         assertDispatchIdentity(refill, acceptedHandles, payloads, dispatchedHandles);
         assertEquals(depth, scheduler.snapshot().runningJobs());
@@ -168,8 +168,8 @@ class SfqdIndependentSchedulingProperties {
         Set<JobHandle> reusedDispatched = new HashSet<>();
         Set<JobHandle> freshDispatched = new HashSet<>();
         while (reused.snapshot().queuedJobs() > 0) {
-            List<Dispatch<String, String, Payload>> reusedBatch = reused.capacityAvailable(depth);
-            List<Dispatch<String, String, Payload>> freshBatch = fresh.capacityAvailable(depth);
+            List<Dispatch<String, String, Payload>> reusedBatch = reused.dispatchUpTo(depth);
+            List<Dispatch<String, String, Payload>> freshBatch = fresh.dispatchUpTo(depth);
             assertEquals(reusedBatch.size(), freshBatch.size());
             assertDispatchIdentity(reusedBatch, reusedAccepted, reusedPayloads, reusedDispatched);
             assertDispatchIdentity(freshBatch, freshAccepted, freshPayloads, freshDispatched);
@@ -205,7 +205,7 @@ class SfqdIndependentSchedulingProperties {
         JobHandle warmup = enqueueTracked(
                 scheduler, victim, "victim-warmup", victimWarmupCost, acceptedHandles, payloads);
         JobHandle anchorJob = enqueueTracked(scheduler, anchor, "anchor", 1L, acceptedHandles, payloads);
-        List<Dispatch<String, String, Payload>> initial = scheduler.capacityAvailable(2);
+        List<Dispatch<String, String, Payload>> initial = scheduler.dispatchUpTo(2);
         assertDispatchIdentity(initial, acceptedHandles, payloads, dispatchedHandles);
         assertEquals(List.of("victim-warmup", "anchor"), initial.stream().map(Dispatch::jobId).toList());
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(warmup));
@@ -223,7 +223,7 @@ class SfqdIndependentSchedulingProperties {
                     competitorCost,
                     acceptedHandles,
                     payloads);
-            Dispatch<String, String, Payload> selected = scheduler.capacityAvailable(1).getFirst();
+            Dispatch<String, String, Payload> selected = scheduler.dispatchUpTo(1).getFirst();
             assertDispatchIdentity(List.of(selected), acceptedHandles, payloads, dispatchedHandles);
             assertEquals(competitorJob, selected.jobHandle());
             assertEquals(CompletionResult.COMPLETED, scheduler.complete(competitorJob));
@@ -236,14 +236,14 @@ class SfqdIndependentSchedulingProperties {
                 acceptedHandles,
                 payloads);
 
-        Dispatch<String, String, Payload> selected = scheduler.capacityAvailable(1).getFirst();
+        Dispatch<String, String, Payload> selected = scheduler.dispatchUpTo(1).getFirst();
 
         assertDispatchIdentity(List.of(selected), acceptedHandles, payloads, dispatchedHandles);
         assertEquals(victimHead, selected.jobHandle());
         assertEquals("victim-head", selected.jobId());
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(victimHead));
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(anchorJob));
-        Dispatch<String, String, Payload> finalCompetitor = scheduler.capacityAvailable(1).getFirst();
+        Dispatch<String, String, Payload> finalCompetitor = scheduler.dispatchUpTo(1).getFirst();
         assertEquals(competitorAtBound, finalCompetitor.jobHandle());
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(competitorAtBound));
     }
@@ -313,7 +313,7 @@ class SfqdIndependentSchedulingProperties {
         Set<JobHandle> dispatchedHandles = new HashSet<>();
         while (scheduler.snapshot().queuedJobs() > 0) {
             List<Dispatch<String, String, Payload>> batch =
-                    scheduler.capacityAvailable(scheduler.snapshot().depth());
+                    scheduler.dispatchUpTo(scheduler.snapshot().depth());
             assertDispatchIdentity(batch, acceptedHandles, payloads, dispatchedHandles);
             for (Dispatch<String, String, Payload> dispatch : batch) {
                 assertEquals(CompletionResult.COMPLETED, scheduler.complete(dispatch.jobHandle()));

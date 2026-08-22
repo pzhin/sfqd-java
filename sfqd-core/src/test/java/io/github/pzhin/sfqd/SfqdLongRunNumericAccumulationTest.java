@@ -175,8 +175,8 @@ class SfqdLongRunNumericAccumulationTest {
             ReferenceScheduler<String, Long, Payload> reference,
             SfqdScheduler<String, Long, Payload> production,
             long event) {
-        List<Dispatch<String, Long, Payload>> expected = reference.capacityAvailable(1);
-        List<Dispatch<String, Long, Payload>> actual = production.capacityAvailable(1);
+        List<Dispatch<String, Long, Payload>> expected = reference.dispatchUpTo(1);
+        List<Dispatch<String, Long, Payload>> actual = production.dispatchUpTo(1);
         assertEquals(1, expected.size(), "reference failed to dispatch at event " + event);
         assertEquals(1, actual.size(), "production failed to dispatch at event " + event);
         Dispatch<String, Long, Payload> expectedDispatch = expected.getFirst();

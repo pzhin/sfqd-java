@@ -100,7 +100,7 @@ class SfqdDeterministicConcurrencyTest {
 
         JobHandle first = accepted(race.first);
         JobHandle second = accepted(race.second);
-        List<Dispatch<String, String, String>> batch = scheduler.capacityAvailable(2);
+        List<Dispatch<String, String, String>> batch = scheduler.dispatchUpTo(2);
         List<JobHandle> order = batch.stream().map(Dispatch::jobHandle).toList();
         assertTrue(order.equals(List.of(first, second)) || order.equals(List.of(second, first)));
         assertRealTimeWitness(
@@ -123,7 +123,7 @@ class SfqdDeterministicConcurrencyTest {
 
         RaceResult<EnqueueResult, List<Dispatch<String, String, String>>> race = race(
                 () -> scheduler.enqueue(fresh, "new", "new-p", 1L),
-                () -> scheduler.capacityAvailable(1));
+                () -> scheduler.dispatchUpTo(1));
 
         JobHandle newJob = accepted(race.first);
         assertEquals(1, race.second.size());
@@ -133,7 +133,7 @@ class SfqdDeterministicConcurrencyTest {
                 () -> assertEquals("new", race.second.getFirst().jobId()),
                 () -> assertEquals("old", race.second.getFirst().jobId()));
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(race.second.getFirst().jobHandle()));
-        List<Dispatch<String, String, String>> remaining = scheduler.capacityAvailable(1);
+        List<Dispatch<String, String, String>> remaining = scheduler.dispatchUpTo(1);
         assertEquals(1, remaining.size());
         assertEquals(Set.of("old", "new"),
                 Set.of(race.second.getFirst().jobId(), remaining.getFirst().jobId()));
@@ -161,13 +161,13 @@ class SfqdDeterministicConcurrencyTest {
         assertEquals(CancelResult.NOT_LIVE, scheduler.cancel(old));
         if (race.second instanceof EnqueueResult.Accepted newAdmission) {
             assertNotEquals(old, newAdmission.jobHandle());
-            List<Dispatch<String, String, String>> batch = scheduler.capacityAvailable(1);
+            List<Dispatch<String, String, String>> batch = scheduler.dispatchUpTo(1);
             assertEquals(List.of(newAdmission.jobHandle()), batch.stream().map(Dispatch::jobHandle).toList());
             assertSame("new-p", batch.getFirst().payload());
             assertEquals(CompletionResult.COMPLETED, scheduler.complete(newAdmission.jobHandle()));
         } else {
             assertEquals(EnqueueResult.Rejected.DUPLICATE_LIVE_ID, race.second);
-            assertTrue(scheduler.capacityAvailable(1).isEmpty());
+            assertTrue(scheduler.dispatchUpTo(1).isEmpty());
         }
         assertConservation(scheduler.snapshot());
     }
@@ -179,8 +179,8 @@ class SfqdDeterministicConcurrencyTest {
         JobHandle job = accepted(scheduler.enqueue(flow, "job", "p", 1L));
 
         RaceResult<List<Dispatch<String, String, String>>, List<Dispatch<String, String, String>>> race = race(
-                () -> scheduler.capacityAvailable(1),
-                () -> scheduler.capacityAvailable(1));
+                () -> scheduler.dispatchUpTo(1),
+                () -> scheduler.dispatchUpTo(1));
 
         assertEquals(List.of(0, 1), sortedSizes(race.first, race.second));
         assertRealTimeWitness(
@@ -200,8 +200,8 @@ class SfqdDeterministicConcurrencyTest {
         JobHandle second = accepted(scheduler.enqueue(flow, "second", "second-p", 1L));
 
         RaceResult<List<Dispatch<String, String, String>>, List<Dispatch<String, String, String>>> race = race(
-                () -> scheduler.capacityAvailable(2),
-                () -> scheduler.capacityAvailable(2));
+                () -> scheduler.dispatchUpTo(2),
+                () -> scheduler.dispatchUpTo(2));
 
         assertEquals(List.of(0, 2), sortedSizes(race.first, race.second));
         assertRealTimeWitness(
@@ -222,8 +222,8 @@ class SfqdDeterministicConcurrencyTest {
         JobHandle second = accepted(scheduler.enqueue(flow, "second", "second-p", 1L));
 
         RaceResult<List<Dispatch<String, String, String>>, List<Dispatch<String, String, String>>> race = race(
-                () -> scheduler.capacityAvailable(1),
-                () -> scheduler.capacityAvailable(1));
+                () -> scheduler.dispatchUpTo(1),
+                () -> scheduler.dispatchUpTo(1));
 
         assertEquals(List.of(1, 1), sortedSizes(race.first, race.second));
         List<JobHandle> handles = combinedHandles(race.first, race.second);
@@ -245,7 +245,7 @@ class SfqdDeterministicConcurrencyTest {
         JobHandle victim = accepted(scheduler.enqueue(flow, "victim", "p", 1L));
 
         RaceResult<List<Dispatch<String, String, String>>, CancelResult> race = race(
-                () -> scheduler.capacityAvailable(1),
+                () -> scheduler.dispatchUpTo(1),
                 () -> scheduler.cancel(victim));
 
         if (race.second == CancelResult.CANCELLED) {
@@ -276,7 +276,7 @@ class SfqdDeterministicConcurrencyTest {
         JobHandle second = accepted(scheduler.enqueue(flow, "second", "second-p", 1L));
 
         RaceResult<List<Dispatch<String, String, String>>, CancelResult> race = race(
-                () -> scheduler.capacityAvailable(1),
+                () -> scheduler.dispatchUpTo(1),
                 () -> scheduler.cancel(second));
 
         assertEquals(CancelResult.CANCELLED, race.second);
@@ -314,7 +314,7 @@ class SfqdDeterministicConcurrencyTest {
         SfqdScheduler<String, String, String> scheduler = scheduler(1, 1, 1);
         FlowHandle flow = registered(scheduler.registerFlow("flow", 1L));
         JobHandle job = accepted(scheduler.enqueue(flow, "job", "p", 1L));
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
 
         RaceResult<CompletionResult, CompletionResult> race = race(
                 () -> scheduler.complete(job),
@@ -344,11 +344,11 @@ class SfqdDeterministicConcurrencyTest {
         FlowHandle flow = registered(scheduler.registerFlow("flow", 1L));
         JobHandle running = accepted(scheduler.enqueue(flow, "running", "running-p", 1L));
         JobHandle next = accepted(scheduler.enqueue(flow, "next", "next-p", 1L));
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
 
         RaceResult<CompletionResult, List<Dispatch<String, String, String>>> race = race(
                 () -> scheduler.complete(running),
-                () -> scheduler.capacityAvailable(1));
+                () -> scheduler.dispatchUpTo(1));
 
         assertEquals(CompletionResult.COMPLETED, race.first);
         assertRealTimeWitness(
@@ -359,7 +359,7 @@ class SfqdDeterministicConcurrencyTest {
             assertEquals(new SchedulerSnapshot(1, 1, 2, 1, 1, 0, 1, 1, 1, 2L, 1L, 0L, 1L),
                     scheduler.snapshot());
             assertEquals(List.of(next),
-                    scheduler.capacityAvailable(1).stream().map(Dispatch::jobHandle).toList());
+                    scheduler.dispatchUpTo(1).stream().map(Dispatch::jobHandle).toList());
         } else {
             assertEquals(List.of(next), race.second.stream().map(Dispatch::jobHandle).toList());
             assertEquals(new SchedulerSnapshot(1, 1, 2, 1, 0, 1, 0, 1, 0, 2L, 2L, 0L, 1L),
@@ -497,7 +497,7 @@ class SfqdDeterministicConcurrencyTest {
         JobHandle debt = accepted(scheduler.enqueue(inactive, "debt", "debt-p", 1L));
         JobHandle running = accepted(scheduler.enqueue(active, "job", "p", 1L));
         assertEquals(CancelResult.CANCELLED, scheduler.cancel(debt));
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
 
         RaceResult<CloseFlowResult, CompletionResult> race = race(
                 () -> scheduler.closeFlow(inactive),
@@ -557,7 +557,7 @@ class SfqdDeterministicConcurrencyTest {
         SchedulerSnapshot before = scheduler.snapshot();
 
         RaceResult<List<Dispatch<String, String, String>>, SchedulerSnapshot> race = race(
-                () -> scheduler.capacityAvailable(2),
+                () -> scheduler.dispatchUpTo(2),
                 scheduler::snapshot);
 
         assertEquals(2, race.first.size());
@@ -582,7 +582,7 @@ class SfqdDeterministicConcurrencyTest {
         FlowSnapshot before = scheduler.snapshot(flow).orElseThrow();
 
         RaceResult<List<Dispatch<String, String, String>>, FlowSnapshot> race = race(
-                () -> scheduler.capacityAvailable(2),
+                () -> scheduler.dispatchUpTo(2),
                 () -> scheduler.snapshot(flow).orElseThrow());
 
         assertEquals(2, race.first.size());
@@ -672,7 +672,7 @@ class SfqdDeterministicConcurrencyTest {
         FlowHandle limited = registered(scheduler.registerFlow("limited", 1L));
         FlowHandle valid = registered(scheduler.registerFlow("valid", 1L));
         JobHandle running = accepted(scheduler.enqueue(anchor, "running", "running-p", 1L));
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
         ExactTag maximum = ExactTag.fromComponents(
                 BigInteger.ONE.shiftLeft(4096).subtract(BigInteger.ONE), BigInteger.ONE);
         setFlowLastFinish(scheduler, limited, maximum);
@@ -688,7 +688,7 @@ class SfqdDeterministicConcurrencyTest {
         FlowHandle target = registered(scheduler.registerFlow("target-flow", 1L));
         FlowHandle dormant = registered(scheduler.registerFlow("dormant", 1L));
         JobHandle running = accepted(scheduler.enqueue(anchor, "anchor", "anchor-p", 1L));
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
         accepted(scheduler.enqueue(first, "a1", "a1-p", 1L));
         accepted(scheduler.enqueue(first, "a2", "a2-p", 1L));
         accepted(scheduler.enqueue(second, "b1", "b1-p", 1L));
@@ -733,7 +733,7 @@ class SfqdDeterministicConcurrencyTest {
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(running));
         List<String> order = new ArrayList<>();
         while (scheduler.snapshot().queuedJobs() != 0) {
-            List<Dispatch<String, String, String>> batch = scheduler.capacityAvailable(1);
+            List<Dispatch<String, String, String>> batch = scheduler.dispatchUpTo(1);
             assertEquals(1, batch.size());
             order.add(batch.getFirst().jobId());
             assertEquals(CompletionResult.COMPLETED, scheduler.complete(batch.getFirst().jobHandle()));

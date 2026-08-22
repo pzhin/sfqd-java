@@ -33,7 +33,7 @@ final class ReferenceLifecycleProperties {
 
         int permitted = Math.min(requested, depth);
         int expected = Math.min(permitted, jobs);
-        assertEquals(expected, model.capacityAvailable(permitted).size());
+        assertEquals(expected, model.dispatchUpTo(permitted).size());
         SchedulerSnapshot snapshot = model.snapshot();
         assertEquals(jobs, snapshot.queuedJobs() + snapshot.runningJobs());
         assertEquals(jobs, snapshot.acceptedTotal());
@@ -174,7 +174,7 @@ final class ReferenceLifecycleProperties {
         }
 
         private void dispatch(int capacity) {
-            List<Dispatch<String, Integer, Integer>> batch = model.capacityAvailable(capacity);
+            List<Dispatch<String, Integer, Integer>> batch = model.dispatchUpTo(capacity);
             for (Dispatch<String, Integer, Integer> item : batch) {
                 JobState job = jobs.get(item.jobHandle());
                 assertNotNull(job);

@@ -28,7 +28,7 @@ public class DuplicateCompletionStress {
   public DuplicateCompletionStress() {
     FlowHandle flow = SchedulerTestSupport.register(scheduler, "flow");
     SchedulerTestSupport.enqueue(scheduler, flow, 1, 1L);
-    job = scheduler.capacityAvailable(1).get(0).jobHandle();
+    job = scheduler.dispatchUpTo(1).get(0).jobHandle();
   }
 
   /**

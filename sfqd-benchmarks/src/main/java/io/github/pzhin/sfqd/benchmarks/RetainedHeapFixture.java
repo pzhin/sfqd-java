@@ -63,7 +63,7 @@ public final class RetainedHeapFixture {
             }
         }
         List<Dispatch<FixtureFlow, FixtureJob, FixturePayload>> running =
-                scheduler.capacityAvailable(options.runningJobs());
+                scheduler.dispatchUpTo(options.runningJobs());
         if (running.size() != options.runningJobs()) {
             throw new IllegalStateException("fixture failed to establish requested running jobs");
         }

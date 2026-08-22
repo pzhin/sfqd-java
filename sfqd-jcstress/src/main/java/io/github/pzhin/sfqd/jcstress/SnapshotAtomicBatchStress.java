@@ -38,7 +38,7 @@ public class SnapshotAtomicBatchStress {
    */
   @Actor
   public void dispatch(IIIIIII_Result result) {
-    result.r1 = SchedulerTestSupport.dispatchCode(scheduler.capacityAvailable(2));
+    result.r1 = SchedulerTestSupport.dispatchCode(scheduler.dispatchUpTo(2));
   }
 
   /**

@@ -30,7 +30,7 @@ public class CompletionDispatchStress {
     FlowHandle flow = SchedulerTestSupport.register(scheduler, "flow");
     SchedulerTestSupport.enqueue(scheduler, flow, 1, 1L);
     SchedulerTestSupport.enqueue(scheduler, flow, 2, 1L);
-    running = scheduler.capacityAvailable(1).get(0).jobHandle();
+    running = scheduler.dispatchUpTo(1).get(0).jobHandle();
   }
 
   /**
@@ -50,7 +50,7 @@ public class CompletionDispatchStress {
    */
   @Actor
   public void dispatch(IIIIII_Result result) {
-    result.r2 = SchedulerTestSupport.dispatchCode(scheduler.capacityAvailable(1));
+    result.r2 = SchedulerTestSupport.dispatchCode(scheduler.dispatchUpTo(1));
   }
 
   /**

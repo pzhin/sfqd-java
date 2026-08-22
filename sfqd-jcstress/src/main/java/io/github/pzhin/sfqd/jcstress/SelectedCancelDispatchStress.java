@@ -37,7 +37,7 @@ public class SelectedCancelDispatchStress {
    */
   @Actor
   public void dispatch(IIIIII_Result result) {
-    result.r1 = SchedulerTestSupport.dispatchCode(scheduler.capacityAvailable(1));
+    result.r1 = SchedulerTestSupport.dispatchCode(scheduler.dispatchUpTo(1));
   }
 
   /**
