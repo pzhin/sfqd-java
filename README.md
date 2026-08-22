@@ -28,8 +28,12 @@ The project is licensed under the
 
 ## Requirements
 
-- JDK 25
+- JDK 17 or newer
 - the checked-in Maven Wrapper
+
+Published classes target Java 17 (`--release 17`), so applications do not need
+a newer JDK to consume the library. The ordinary Maven lifecycle is implemented
+without POSIX shell commands and is supported by both wrappers.
 
 Build and verify the library:
 
@@ -37,11 +41,19 @@ Build and verify the library:
 ./mvnw --batch-mode --no-transfer-progress clean verify
 ```
 
+On Windows Command Prompt or PowerShell:
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress clean verify
+```
+
 Install the snapshot into your local Maven repository:
 
 ```shell
 ./mvnw --batch-mode --no-transfer-progress install
 ```
+
+On Windows, use the same arguments with `.\mvnw.cmd`.
 
 Then add it to a local consumer:
 

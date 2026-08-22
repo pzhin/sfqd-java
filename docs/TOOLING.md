@@ -6,15 +6,24 @@ documented in the [README](../README.md).
 
 ## Required environment
 
-- a POSIX-like environment with Bash, Git, `awk`, `sort`, `diff`, and `cmp`;
-- JDK 25, including `java`, `javac`, `jar`, and `javap`;
-- `JAVA_HOME` pointing to that JDK for repository verifier scripts;
-- the checked-in Maven Wrapper, pinned to Maven 3.9.16;
-- Python 3 for the isolated publication-consumer verifier;
-- either GNU `sha256sum` or macOS/Perl `shasum` for reproducibility checks.
+The ordinary `package`, `verify`, and `install` lifecycles require only:
 
-Maven Enforcer rejects a different Java feature release or an older Maven.
-Production code is compiled with `--release 25`, `-Xlint:all`, and `-Werror`.
+- JDK 17 or newer;
+- the checked-in Maven Wrapper, pinned to Maven 3.9.16.
+
+Use `mvnw` on POSIX systems and `mvnw.cmd` on Windows. Maven-bound artifact and
+benchmark checks are Java programs, so the Windows lifecycle does not require
+Git Bash or WSL.
+
+The standalone release verifiers additionally require a POSIX-like environment
+with Bash, Git, Python 3, `awk`, and either GNU `sha256sum` or macOS/Perl
+`shasum`. These scripts create isolated worktrees or temporary Maven
+repositories and are not part of `package`, `verify`, or `install`.
+
+Maven Enforcer rejects JDKs outside the supported range or an older Maven.
+Production code is compiled with `--release 17`, `-Xlint:all`, and `-Werror`.
+The core artifact verifier also rejects class files whose major version is not
+the Java 17 version, preventing accidental publication of newer bytecode.
 
 ## Modules
 
@@ -43,6 +52,9 @@ This command blocks on:
 - SpotBugs at maximum effort with zero allowed findings;
 - JavaDoc errors or warnings;
 - exact binary/source/JavaDoc artifact contents and public API surface.
+
+The Java artifact verifier also inserts the project license into the source and
+JavaDoc JARs without invoking platform-specific archive tools.
 
 `tools/verify-javadoc-gate.sh` adds an undocumented public class, constructor,
 and method in a detached worktree. The build must fail at the JavaDoc goal. A
@@ -110,13 +122,15 @@ configuration, credentials, signing policy, tag, and release notes.
 
 ## CI jobs
 
-GitHub Actions runs five independent jobs:
+GitHub Actions runs six independent job definitions:
 
-1. default quality gates and the negative JavaDoc mutation;
-2. all jcstress tests in quick mode;
-3. two-build archive reproducibility;
-4. local publication topology plus independent consumer resolution;
-5. benchmark packaging, discovery, fixture smoke, and one short JMH iteration.
+1. identical default quality gates for the full Ubuntu/Windows and JDK 17/21/25
+   matrix;
+2. the negative JavaDoc mutation on Linux/JDK 25;
+3. all jcstress tests in quick mode;
+4. two-build archive reproducibility;
+5. local publication topology plus independent consumer resolution;
+6. benchmark packaging, discovery, fixture smoke, and one short JMH iteration.
 
 All actions are pinned by full commit SHA and receive read-only repository
 permissions.
@@ -125,9 +139,11 @@ permissions.
 
 | Tool | Version |
 | --- | ---: |
-| JDK | 25 |
+| Minimum build JDK | 17 |
+| CI build JDKs | 17, 21, and 25 |
+| Published class release | 17 |
 | Maven Wrapper / Maven | 3.3.4 / 3.9.16 |
-| Checkstyle | 14.0.0 |
+| Checkstyle | 12.3.1 |
 | SpotBugs | 4.10.3 |
 | JUnit | 5.13.1 |
 | jqwik | 1.9.3 |
