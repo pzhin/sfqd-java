@@ -225,6 +225,19 @@ old and new identities would both assign the next job start tag `V`.
 `snapshot()` returns constant-size counts and cumulative counters. It does not
 expose internal queues or mutable scheduler state.
 
+`snapshot(flowHandle)` returns an `Optional<FlowSnapshot>` for the exact active
+registration. It reports current queued/running counts and exact cumulative
+accepted, dispatched, and cancelled cost units. Current queued cost is also
+available as `acceptedCost - dispatchedCost - cancelledCost` through
+`queuedCost()`. Cost totals use `BigInteger`, so valid `long` costs do not
+overflow observability counters.
+
+The per-flow snapshot is captured atomically with lifecycle transitions. A
+foreign, stale, or closed handle returns an empty optional. The library does
+not own a clock, retain enqueue timestamps, expose internal virtual tags, or
+invoke metrics callbacks; applications can keep timestamps in payloads or an
+external observer when wall-clock queue age is needed.
+
 ## Thread safety
 
 All public operations are linearizable and may be called concurrently. The
@@ -296,7 +309,7 @@ number of jobs returned by one capacity call.
 | cancel a flow head | `O(log B)` |
 | dispatch `m` jobs | `O(m log B + m)` |
 | ordinary completion | expected `O(1)` |
-| snapshot | `O(1)` |
+| aggregate or per-flow snapshot | expected `O(1)` |
 | transition to global idle | `O(R)` |
 | rare exact-tag normalization | `O(Q + R)` time and temporary space |
 

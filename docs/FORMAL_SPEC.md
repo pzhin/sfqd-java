@@ -21,7 +21,7 @@ linearization contract concurrent production API.
 - `cancel`;
 - `capacityAvailable`, далее также `dispatch`;
 - `complete`;
-- `snapshot`.
+- `snapshot()` и `snapshot(flowHandle)`.
 
 Scheduler выбирает jobs, но не исполняет их, не владеет executor или resource
 pool и не делает callbacks.
@@ -621,6 +621,37 @@ Snapshot не содержит payload, identifiers, handles или internal tag
 точный immutable atomic snapshot одного linearization point, а не weakly
 consistent iteration. Cumulative counters не включают failed/no-op outcomes.
 
+### 7.8 `snapshot(flowHandle)`
+
+Null handle — invalid argument. Для exact capability текущей регистрации
+операция возвращает immutable `FlowSnapshot`:
+
+```text
+queuedJobs, runningJobs,
+acceptedCost, dispatchedCost, cancelledCost
+```
+
+Job counts относятся к текущему состоянию. Cost totals — точные неотрицательные
+целые суммы supplied cost за lifetime этой регистрации:
+
+- `acceptedCost` увеличивается только успешным enqueue;
+- `dispatchedCost` увеличивается для каждого job в успешном dispatch batch;
+- `cancelledCost` увеличивается только успешным queued cancel;
+- текущий `queuedCost = acceptedCost - dispatchedCost - cancelledCost`.
+
+Completion не меняет cost totals: `dispatchedCost` включает running и completed
+jobs. Failed/no-op outcomes не меняют snapshot. Cost totals НЕ переполняются:
+они представлены exact integers и ограничены глобальным never-reused job
+sequence, поэтому каждое значение не превышает
+`Long.MAX_VALUE * Long.MAX_VALUE`.
+
+Для foreign, stale либо closed capability операция возвращает empty. Snapshot
+не содержит FlowId, handle, payload, weight, internal tags или clock-derived
+age. Scheduler не владеет clock и не вызывает пользовательские metrics
+callbacks. Текущий weight известен caller из успешной регистрации; enqueue
+timestamp/oldest age при необходимости остаётся в caller payload или внешнем
+observer.
+
 ## 8. Linearization points и races
 
 Public operations полностью thread-safe и линейризуемы. Конкретный lock/CAS
@@ -646,6 +677,7 @@ commit/observation:
 | `complete/NOT_DISPATCHED` | atomic observation handle в `Queued` |
 | `complete/NOT_LIVE` | atomic observation отсутствия handle в `Queued` и `Running` |
 | `snapshot` | atomic capture всех перечисленных полей |
+| `snapshot(flowHandle)` | atomic lookup регистрации и capture всех flow fields либо observation её отсутствия |
 
 Rebase, busy-period reset и payload release являются частью LP вызвавшей их
 операции, а не отдельными public events.
@@ -813,8 +845,12 @@ Scheduler хранит `O(liveJobs + registeredFlows)` records. При
 - Terminal handles/IDs/results не кэшируются.
 - Handles содержат только inert owner token/sequence и не удерживают scheduler
   или caller domain objects.
-- Единственные lifetime-wide значения — четыре fixed-width counters и два
-  fixed-width sequence, каждый ограничен `Long.MAX_VALUE`.
+- Единственные scheduler-wide lifetime значения — четыре fixed-width counters
+  и два fixed-width sequence, каждый ограничен `Long.MAX_VALUE`.
+- Каждая registration хранит три exact cost totals. Never-reused job sequence
+  ограничивает каждую сумму значением
+  `Long.MAX_VALUE * Long.MAX_VALUE` (не более 126 bits); successful close
+  удаляет эти totals вместе с registration state.
 - Exact tag components ограничены 4096 bits и exact rebase; numeric limit
   приводит к явному отказу enqueue, а не неограниченному росту. Rebase требует
   `O(queuedJobs + registeredFlows)` bounded temporary state.
@@ -840,7 +876,7 @@ Scheduler хранит `O(liveJobs + registeredFlows)` records. При
 | Weight changes | Не определены | Weight fixed registration lifetime; смена только safe close+new registration |
 | Numbers | Математические unbounded tags | Exact canonical rational, fail-closed 4096-bit persistent/8193-bit transient budgets, transactional all-registration rebase |
 | Retention | Не рассматривается | Payload release, no terminal metadata, `maxLiveJobs` и `maxFlows` bounds |
-| Introspection | Не рассматривается | Exact atomic aggregate snapshot без tags/identifiers |
+| Introspection | Не рассматривается | Exact atomic aggregate snapshot и per-registration lifecycle snapshot без tags/identifiers/clock |
 | Executor rejection | Не рассматривается | Dispatch irrevocable; caller обязан complete, requeue является новым enqueue |
 
 Min-SFQ(D), FSFQ(D), FlashFQ, MSFQ, MSF²Q и MQFQ не добавляются. В частности,
@@ -868,9 +904,10 @@ implementation ДОЛЖНЫ совпадать по:
 - ordered dispatch lists, сравниваемые field-by-field по §7.5 через эти
   logical handle mappings;
 - cancel/completion results;
-- snapshots;
+- aggregate и per-flow snapshots;
 - rejection без state mutation;
-- busy-period reset, persistent dormant histories и snapshot counts.
+- busy-period reset, persistent dormant histories, snapshot counts и exact
+  per-flow lifecycle costs.
 
 Для concurrency history результаты должны допускать хотя бы одну
 последовательность по §8. Обязательные model properties:

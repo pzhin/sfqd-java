@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.math.BigInteger;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
@@ -121,6 +122,21 @@ final class ApiVocabularyTest {
         assertEquals(snapshot, copy);
         assertEquals(snapshot.hashCode(), copy.hashCode());
         assertFalse(Arrays.stream(SchedulerSnapshot.class.getDeclaredConstructors())
+                .anyMatch(constructor -> Modifier.isPublic(constructor.getModifiers())));
+        FlowSnapshot flowSnapshot = new FlowSnapshot(
+                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE);
+        assertEquals(3, flowSnapshot.queuedJobs());
+        assertEquals(4, flowSnapshot.runningJobs());
+        assertEquals(BigInteger.TEN, flowSnapshot.acceptedCost());
+        assertEquals(BigInteger.valueOf(6L), flowSnapshot.dispatchedCost());
+        assertEquals(BigInteger.ONE, flowSnapshot.cancelledCost());
+        assertEquals(BigInteger.valueOf(3L), flowSnapshot.queuedCost());
+        assertTrue(flowSnapshot.toString().contains("acceptedCost=10"));
+        assertEquals(flowSnapshot, new FlowSnapshot(
+                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE));
+        assertEquals(flowSnapshot.hashCode(), new FlowSnapshot(
+                3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE).hashCode());
+        assertFalse(Arrays.stream(FlowSnapshot.class.getDeclaredConstructors())
                 .anyMatch(constructor -> Modifier.isPublic(constructor.getModifiers())));
         assertFalse(Arrays.stream(RegisterFlowResult.Registered.class.getDeclaredConstructors())
                 .anyMatch(constructor -> Modifier.isPublic(constructor.getModifiers())));

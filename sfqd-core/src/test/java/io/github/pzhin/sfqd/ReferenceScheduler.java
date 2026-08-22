@@ -1,10 +1,12 @@
 package io.github.pzhin.sfqd;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 final class ReferenceScheduler<F, J, P> {
     private final SchedulerConfig config;
@@ -105,6 +107,7 @@ final class ReferenceScheduler<F, J, P> {
         liveById.put(jobId, handle);
         flow.lastFinish = finish;
         flow.queuedCount++;
+        flow.acceptedCost = flow.acceptedCost.add(BigInteger.valueOf(cost));
         lastJobSequence++;
         accepted++;
         return new EnqueueResult.Accepted(handle);
@@ -123,6 +126,7 @@ final class ReferenceScheduler<F, J, P> {
             FlowState<F> flow = registeredFlows.get(job.flowHandle);
             flow.queuedCount--;
             flow.runningCount++;
+            flow.dispatchedCost = flow.dispatchedCost.add(BigInteger.valueOf(job.cost));
             running.put(handle, new RunningJob<>(handle, job.jobId, job.flowHandle, job.cost));
             dispatched++;
             result.add(new Dispatch<>(handle, job.jobId, job.flowId, job.payload, job.cost));
@@ -138,6 +142,7 @@ final class ReferenceScheduler<F, J, P> {
             liveById.remove(job.jobId);
             FlowState<F> flow = registeredFlows.get(job.flowHandle);
             flow.queuedCount--;
+            flow.cancelledCost = flow.cancelledCost.add(BigInteger.valueOf(job.cost));
             cancelled++;
             resetIfIdle();
             return CancelResult.CANCELLED;
@@ -174,6 +179,16 @@ final class ReferenceScheduler<F, J, P> {
                 config.depth(), config.maxFlows(), config.maxLiveJobs(), registeredFlows.size(), queued.size(),
                 running.size(), config.depth() - running.size(), active, backlogged,
                 accepted, dispatched, cancelled, completed);
+    }
+
+    Optional<FlowSnapshot> snapshot(FlowHandle flowHandle) {
+        Objects.requireNonNull(flowHandle, "flowHandle");
+        FlowState<F> flow = registeredFlows.get(flowHandle);
+        return flow == null
+                ? Optional.empty()
+                : Optional.of(new FlowSnapshot(
+                        flow.queuedCount, flow.runningCount,
+                        flow.acceptedCost, flow.dispatchedCost, flow.cancelledCost));
     }
 
     List<JobHandle> queuedHandles() {
@@ -257,6 +272,9 @@ final class ReferenceScheduler<F, J, P> {
         private ExactRational lastFinish = ExactRational.ZERO;
         private int queuedCount;
         private int runningCount;
+        private BigInteger acceptedCost = BigInteger.ZERO;
+        private BigInteger dispatchedCost = BigInteger.ZERO;
+        private BigInteger cancelledCost = BigInteger.ZERO;
 
         private FlowState(F flowId, long weight) {
             this.flowId = flowId;

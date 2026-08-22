@@ -24,6 +24,7 @@ final class PublicArtifactSurfaceTest {
             "io.github.pzhin.sfqd.EnqueueResult$Accepted",
             "io.github.pzhin.sfqd.EnqueueResult$Rejected",
             "io.github.pzhin.sfqd.FlowHandle",
+            "io.github.pzhin.sfqd.FlowSnapshot",
             "io.github.pzhin.sfqd.JobHandle",
             "io.github.pzhin.sfqd.RegisterFlowResult",
             "io.github.pzhin.sfqd.RegisterFlowResult$Registered",
