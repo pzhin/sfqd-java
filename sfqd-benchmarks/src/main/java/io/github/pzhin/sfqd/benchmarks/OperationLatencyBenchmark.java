@@ -365,7 +365,7 @@ public class OperationLatencyBenchmark {
             if (dispatches.size() != 1) {
                 throw new IllegalStateException("steady completion requires one dispatch");
             }
-            Dispatch<FlowKey, JobKey, Payload> dispatch = dispatches.getFirst();
+            Dispatch<FlowKey, JobKey, Payload> dispatch = dispatches.get(0);
             running = SchedulerBenchmarkSupport.removeByHandle(
                     fixture.queue(dispatch.flowId().index()), dispatch.jobHandle());
         }

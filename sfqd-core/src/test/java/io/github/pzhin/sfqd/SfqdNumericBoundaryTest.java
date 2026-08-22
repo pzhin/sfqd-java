@@ -478,7 +478,7 @@ class SfqdNumericBoundaryTest {
             List<IdentityRef> headNodes = heads.stream().map(NumericProbe::identity).toList();
             Set<JobHandle> expectedHeads = flowQueues.values().stream()
                     .filter(queue -> !queue.isEmpty())
-                    .map(List::getFirst)
+                    .map(queue -> queue.get(0))
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
             if (!Set.copyOf(headHandles).equals(expectedHeads)) {
                 throw new AssertionError("backlogged index is not exactly the set of flow heads");

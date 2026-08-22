@@ -182,7 +182,7 @@ class SfqdFairnessBoundProperties {
                             BigInteger.ZERO,
                             BigInteger.ZERO,
                             completionTrace));
-            Dispatch<String, String, Payload> replacement = refill.getFirst();
+            Dispatch<String, String, Payload> replacement = refill.get(0);
             assertDispatch(replacement, acceptedHandles, dispatchedHandles, expectedJobs);
             running.add(replacement);
             assertEquals(depth, running.size());

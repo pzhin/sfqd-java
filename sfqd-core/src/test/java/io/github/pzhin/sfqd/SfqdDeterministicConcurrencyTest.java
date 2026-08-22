@@ -127,19 +127,19 @@ class SfqdDeterministicConcurrencyTest {
 
         JobHandle newJob = accepted(race.first);
         assertEquals(1, race.second.size());
-        assertTrue(Set.of("old", "new").contains(race.second.getFirst().jobId()));
+        assertTrue(Set.of("old", "new").contains(race.second.get(0).jobId()));
         assertRealTimeWitness(
                 race,
-                () -> assertEquals("new", race.second.getFirst().jobId()),
-                () -> assertEquals("old", race.second.getFirst().jobId()));
-        assertEquals(CompletionResult.COMPLETED, scheduler.complete(race.second.getFirst().jobHandle()));
+                () -> assertEquals("new", race.second.get(0).jobId()),
+                () -> assertEquals("old", race.second.get(0).jobId()));
+        assertEquals(CompletionResult.COMPLETED, scheduler.complete(race.second.get(0).jobHandle()));
         List<Dispatch<String, String, String>> remaining = scheduler.dispatchUpTo(1);
         assertEquals(1, remaining.size());
         assertEquals(Set.of("old", "new"),
-                Set.of(race.second.getFirst().jobId(), remaining.getFirst().jobId()));
-        assertTrue(race.second.getFirst().jobHandle().equals(newJob)
-                || remaining.getFirst().jobHandle().equals(newJob));
-        assertEquals(CompletionResult.COMPLETED, scheduler.complete(remaining.getFirst().jobHandle()));
+                Set.of(race.second.get(0).jobId(), remaining.get(0).jobId()));
+        assertTrue(race.second.get(0).jobHandle().equals(newJob)
+                || remaining.get(0).jobHandle().equals(newJob));
+        assertEquals(CompletionResult.COMPLETED, scheduler.complete(remaining.get(0).jobHandle()));
         assertConservation(scheduler.snapshot());
     }
 
@@ -163,7 +163,7 @@ class SfqdDeterministicConcurrencyTest {
             assertNotEquals(old, newAdmission.jobHandle());
             List<Dispatch<String, String, String>> batch = scheduler.dispatchUpTo(1);
             assertEquals(List.of(newAdmission.jobHandle()), batch.stream().map(Dispatch::jobHandle).toList());
-            assertSame("new-p", batch.getFirst().payload());
+            assertSame("new-p", batch.get(0).payload());
             assertEquals(CompletionResult.COMPLETED, scheduler.complete(newAdmission.jobHandle()));
         } else {
             assertEquals(EnqueueResult.Rejected.DUPLICATE_LIVE_ID, race.second);
@@ -735,8 +735,8 @@ class SfqdDeterministicConcurrencyTest {
         while (scheduler.snapshot().queuedJobs() != 0) {
             List<Dispatch<String, String, String>> batch = scheduler.dispatchUpTo(1);
             assertEquals(1, batch.size());
-            order.add(batch.getFirst().jobId());
-            assertEquals(CompletionResult.COMPLETED, scheduler.complete(batch.getFirst().jobHandle()));
+            order.add(batch.get(0).jobId());
+            assertEquals(CompletionResult.COMPLETED, scheduler.complete(batch.get(0).jobHandle()));
         }
         return List.copyOf(order);
     }

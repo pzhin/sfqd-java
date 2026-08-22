@@ -120,7 +120,7 @@ final class ReferenceScheduler<F, J, P> {
         int count = Math.min(capacity, Math.min(config.depth() - running.size(), queued.size()));
         List<Dispatch<F, J, P>> result = new ArrayList<>(count);
         for (int index = 0; index < count; index++) {
-            JobHandle handle = priority.removeFirst();
+            JobHandle handle = priority.remove(0);
             QueuedJob<F, J, P> job = Objects.requireNonNull(queued.remove(handle), "queued job");
             virtualTime = job.start;
             FlowState<F> flow = registeredFlows.get(job.flowHandle);

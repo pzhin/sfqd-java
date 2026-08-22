@@ -48,7 +48,7 @@ class SfqdIndependentSchedulingProperties {
         int[] completedByFlow = new int[flows.size()];
         Set<JobHandle> dispatchedHandles = new HashSet<>();
         for (int selected = 0; selected < observationJobs; selected++) {
-            Dispatch<String, String, Payload> dispatch = scheduler.dispatchUpTo(1).getFirst();
+            Dispatch<String, String, Payload> dispatch = scheduler.dispatchUpTo(1).get(0);
             assertTrue(acceptedHandles.contains(dispatch.jobHandle()));
             assertTrue(dispatchedHandles.add(dispatch.jobHandle()));
             assertSame(payloads.get(dispatch.jobHandle()), dispatch.payload());
@@ -223,7 +223,7 @@ class SfqdIndependentSchedulingProperties {
                     competitorCost,
                     acceptedHandles,
                     payloads);
-            Dispatch<String, String, Payload> selected = scheduler.dispatchUpTo(1).getFirst();
+            Dispatch<String, String, Payload> selected = scheduler.dispatchUpTo(1).get(0);
             assertDispatchIdentity(List.of(selected), acceptedHandles, payloads, dispatchedHandles);
             assertEquals(competitorJob, selected.jobHandle());
             assertEquals(CompletionResult.COMPLETED, scheduler.complete(competitorJob));
@@ -236,14 +236,14 @@ class SfqdIndependentSchedulingProperties {
                 acceptedHandles,
                 payloads);
 
-        Dispatch<String, String, Payload> selected = scheduler.dispatchUpTo(1).getFirst();
+        Dispatch<String, String, Payload> selected = scheduler.dispatchUpTo(1).get(0);
 
         assertDispatchIdentity(List.of(selected), acceptedHandles, payloads, dispatchedHandles);
         assertEquals(victimHead, selected.jobHandle());
         assertEquals("victim-head", selected.jobId());
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(victimHead));
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(anchorJob));
-        Dispatch<String, String, Payload> finalCompetitor = scheduler.dispatchUpTo(1).getFirst();
+        Dispatch<String, String, Payload> finalCompetitor = scheduler.dispatchUpTo(1).get(0);
         assertEquals(competitorAtBound, finalCompetitor.jobHandle());
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(competitorAtBound));
     }

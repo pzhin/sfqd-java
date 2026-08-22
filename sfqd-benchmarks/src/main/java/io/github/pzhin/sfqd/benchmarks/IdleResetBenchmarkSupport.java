@@ -154,7 +154,7 @@ final class IdleResetBenchmarkSupport {
             if (dispatches.size() != 1) {
                 throw new IllegalStateException("terminal fixture requires one dispatch");
             }
-            return dispatches.getFirst();
+            return dispatches.get(0);
         }
 
         private void verifyIdle() {

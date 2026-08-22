@@ -19,7 +19,7 @@ final class ReferenceDispatchTest {
         JobHandle second = accepted(model.enqueue(firstFlow, "second", new Object(), 1L));
         JobHandle third = accepted(model.enqueue(secondFlow, "third", new Object(), 2L));
 
-        Dispatch<String, String, Object> firstDispatch = model.dispatchUpTo(1).getFirst();
+        Dispatch<String, String, Object> firstDispatch = model.dispatchUpTo(1).get(0);
         assertSame(first, firstDispatch.jobHandle());
         assertEquals("first", firstDispatch.jobId());
         assertEquals("first-flow", firstDispatch.flowId());
@@ -29,9 +29,9 @@ final class ReferenceDispatchTest {
         assertEquals(List.of(), model.dispatchUpTo(1));
         assertEquals(CompletionResult.NOT_DISPATCHED, model.complete(second));
         assertEquals(CompletionResult.COMPLETED, model.complete(first));
-        assertSame(third, model.dispatchUpTo(1).getFirst().jobHandle());
+        assertSame(third, model.dispatchUpTo(1).get(0).jobHandle());
         assertEquals(CompletionResult.COMPLETED, model.complete(third));
-        assertSame(second, model.dispatchUpTo(1).getFirst().jobHandle());
+        assertSame(second, model.dispatchUpTo(1).get(0).jobHandle());
         assertEquals(ExactRational.ONE, model.virtualTime());
     }
 
@@ -74,7 +74,7 @@ final class ReferenceDispatchTest {
         assertEquals(ExactRational.ONE, model.virtualTime());
         assertEquals(CompletionResult.NOT_LIVE, model.complete(second));
         assertEquals(1, model.snapshot().runningJobs());
-        assertSame(third, model.dispatchUpTo(1).getFirst().jobHandle());
+        assertSame(third, model.dispatchUpTo(1).get(0).jobHandle());
     }
 
     @Test
@@ -93,7 +93,7 @@ final class ReferenceDispatchTest {
         assertEquals(0, model.snapshot().freeSlots());
         assertEquals(List.of(), model.dispatchUpTo(3));
         assertEquals(CompletionResult.COMPLETED, model.complete(second));
-        assertSame(fourth, model.dispatchUpTo(3).getFirst().jobHandle());
+        assertSame(fourth, model.dispatchUpTo(3).get(0).jobHandle());
         assertEquals(3, model.snapshot().runningJobs());
         assertEquals(4L, model.snapshot().dispatchedTotal());
     }

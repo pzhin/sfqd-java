@@ -281,7 +281,7 @@ public final class CoreArtifactVerifier {
             }
             require(matches.size() == 1,
                     "core artifact must match exactly one content identity: " + candidate);
-            ArtifactRole role = matches.getFirst();
+            ArtifactRole role = matches.get(0);
             require(artifacts.put(role, candidate) == null, "duplicate core " + role.displayName + " artifact");
         }
         for (ArtifactRole role : ArtifactRole.values()) {

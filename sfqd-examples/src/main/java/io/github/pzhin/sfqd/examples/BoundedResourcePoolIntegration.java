@@ -77,7 +77,7 @@ public final class BoundedResourcePoolIntegration<F, J, T> {
             if (dispatches.isEmpty()) {
                 break;
             }
-            Dispatch<F, J, T> dispatch = dispatches.getFirst();
+            Dispatch<F, J, T> dispatch = dispatches.get(0);
             remaining--;
             submit(dispatch);
         }

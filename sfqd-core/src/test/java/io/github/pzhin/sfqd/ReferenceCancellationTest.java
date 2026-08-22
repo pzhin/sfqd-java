@@ -28,7 +28,7 @@ final class ReferenceCancellationTest {
         ReferenceScheduler<String, String, Object> model = model(1, 1, 1);
         FlowHandle flow = registered(model.registerFlow("flow", 1L));
         JobHandle job = accepted(model.enqueue(flow, "job", new Object(), 1L));
-        assertSame(job, model.dispatchUpTo(1).getFirst().jobHandle());
+        assertSame(job, model.dispatchUpTo(1).get(0).jobHandle());
 
         assertEquals(CancelResult.TOO_LATE_ALREADY_DISPATCHED, model.cancel(job));
         assertEquals(CompletionResult.COMPLETED, model.complete(job));
@@ -68,16 +68,16 @@ final class ReferenceCancellationTest {
 
         JobHandle firstCompetitor = accepted(model.enqueue(competitorFlow, "competitor-0", new Object(), 1L));
         JobHandle victim = accepted(model.enqueue(victimFlow, "victim", new Object(), 1L));
-        assertSame(firstCompetitor, model.dispatchUpTo(1).getFirst().jobHandle());
+        assertSame(firstCompetitor, model.dispatchUpTo(1).get(0).jobHandle());
         assertEquals(CompletionResult.COMPLETED, model.complete(firstCompetitor));
         for (int index = 1; index < 5; index++) {
             JobHandle competitor = accepted(
                     model.enqueue(competitorFlow, "competitor-" + index, new Object(), 1L));
-            assertSame(competitor, model.dispatchUpTo(1).getFirst().jobHandle());
+            assertSame(competitor, model.dispatchUpTo(1).get(0).jobHandle());
             assertEquals(CompletionResult.COMPLETED, model.complete(competitor));
         }
         accepted(model.enqueue(competitorFlow, "competitor-5", new Object(), 1L));
-        assertSame(victim, model.dispatchUpTo(1).getFirst().jobHandle());
+        assertSame(victim, model.dispatchUpTo(1).get(0).jobHandle());
     }
 
     @Test
