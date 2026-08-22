@@ -1,5 +1,6 @@
 package io.github.pzhin.sfqd;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -7,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -210,6 +212,7 @@ public final class SfqdScheduler<F, J, P> {
             queued.put(handle, job);
             liveById.put(jobId, handle);
             flow.lastFinish = computation.finish;
+            flow.acceptedCost = flow.acceptedCost.add(BigInteger.valueOf(cost));
             lastJobSequence = sequence;
             accepted++;
             return new EnqueueResult.Accepted(handle);
@@ -248,6 +251,7 @@ public final class SfqdScheduler<F, J, P> {
                 removeQueued(job);
                 queued.remove(handle);
                 liveById.remove(job.jobId);
+                job.flow.cancelledCost = job.flow.cancelledCost.add(BigInteger.valueOf(job.cost));
                 cancelled++;
                 resetIfIdle();
                 return CancelResult.CANCELLED;
@@ -291,6 +295,7 @@ public final class SfqdScheduler<F, J, P> {
                 queued.remove(job.handle);
                 virtualTime = job.start;
                 flow.runningCount++;
+                flow.dispatchedCost = flow.dispatchedCost.add(BigInteger.valueOf(job.cost));
                 running.put(job.handle, new RunningJob<>(job.jobId, flow.handle, job.cost));
                 dispatched++;
                 result.add(new Dispatch<>(job.handle, job.jobId, flow.flowId, job.payload, job.cost));
@@ -351,6 +356,34 @@ public final class SfqdScheduler<F, J, P> {
                     config.depth(), config.maxFlows(), config.maxLiveJobs(), registeredFlows.size(), queued.size(),
                     running.size(), config.depth() - running.size(), activeFlowCount, backlogged.size(),
                     accepted, dispatched, cancelled, completed);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Returns an exact immutable snapshot for one currently registered flow.
+     *
+     * <p>The snapshot is captured at one linearization point under the scheduler's internal synchronization. Cost
+     * totals cover the lifetime of this exact registration and use unbounded integers, so repeated positive
+     * {@code long} costs cannot overflow. A foreign, stale, or closed capability produces an empty result. No flow
+     * identifier, payload, internal scheduling tag, or clock-derived age is exposed.
+     *
+     * @param flowHandle opaque registration capability
+     * @return the current registration snapshot, or empty when the capability is not registered
+     * @throws NullPointerException if flowHandle is null
+     */
+    public Optional<FlowSnapshot> snapshot(FlowHandle flowHandle) {
+        Objects.requireNonNull(flowHandle, "flowHandle");
+        lock.lock();
+        try {
+            FlowState<F, J, P> flow = registeredFlows.get(flowHandle);
+            if (flow == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new FlowSnapshot(
+                    flow.queuedCount, flow.runningCount,
+                    flow.acceptedCost, flow.dispatchedCost, flow.cancelledCost));
         } finally {
             lock.unlock();
         }
@@ -507,6 +540,9 @@ public final class SfqdScheduler<F, J, P> {
         private QueuedJob<F, J, P> tail;
         private int queuedCount;
         private int runningCount;
+        private BigInteger acceptedCost = BigInteger.ZERO;
+        private BigInteger dispatchedCost = BigInteger.ZERO;
+        private BigInteger cancelledCost = BigInteger.ZERO;
 
         private FlowState(FlowHandle handle, F flowId, long weight) {
             this.handle = handle;

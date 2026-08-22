@@ -572,6 +572,31 @@ class SfqdDeterministicConcurrencyTest {
     }
 
     @Test
+    void flowSnapshotRacingAtomicBatchSeesOnlyWholePreOrPostLifecycleCosts() {
+        SfqdScheduler<String, String, String> scheduler = scheduler(2, 1, 2);
+        FlowHandle flow = registered(scheduler.registerFlow("flow", 1L));
+        accepted(scheduler.enqueue(flow, "first", "first-p", 3L));
+        accepted(scheduler.enqueue(flow, "second", "second-p", 5L));
+        FlowSnapshot before = scheduler.snapshot(flow).orElseThrow();
+
+        RaceResult<List<Dispatch<String, String, String>>, FlowSnapshot> race = race(
+                () -> scheduler.capacityAvailable(2),
+                () -> scheduler.snapshot(flow).orElseThrow());
+
+        assertEquals(2, race.first.size());
+        FlowSnapshot after = scheduler.snapshot(flow).orElseThrow();
+        assertTrue(race.second.equals(before) || race.second.equals(after));
+        assertRealTimeWitness(
+                race,
+                () -> assertEquals(after, race.second),
+                () -> assertEquals(before, race.second));
+        assertEquals(new FlowSnapshot(
+                0, 2, BigInteger.valueOf(8L), BigInteger.valueOf(8L), BigInteger.ZERO), after);
+        completeAll(scheduler, race.first);
+        assertConservation(scheduler.snapshot());
+    }
+
+    @Test
     void numericLimitRejectionIsExactNoOpBesideConcurrentAdmission()
             throws NumericLimitException, ReflectiveOperationException {
         NumericNoOpFixture concurrent = numericNoOpFixture();

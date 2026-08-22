@@ -27,6 +27,7 @@ class SfqdDifferentialProperties {
         for (int event = 0; event < commands.size(); event++) {
             harness.apply(commands.get(event), event);
             assertEquals(harness.reference.snapshot(), harness.production.snapshot());
+            harness.assertFlowSnapshotsEqual();
         }
     }
 
@@ -159,6 +160,12 @@ class SfqdDifferentialProperties {
         private void complete(int selector) {
             JobPair job = jobs.get(selector % jobs.size());
             assertEquals(reference.complete(job.reference), production.complete(job.production));
+        }
+
+        private void assertFlowSnapshotsEqual() {
+            for (FlowPair flow : flows) {
+                assertEquals(reference.snapshot(flow.reference), production.snapshot(flow.production));
+            }
         }
     }
 
