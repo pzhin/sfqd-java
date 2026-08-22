@@ -1,8 +1,12 @@
-# Production executor pump integration
+# Minimal executor lifecycle example
+
+This example demonstrates the scheduling lifecycle and is not a reusable
+production executor implementation. It is documentation-only and is not
+compiled into or included in `sfqd-core`.
 
 `SfqdScheduler` decides which jobs become running but deliberately does not
-own an executor, resource pool, callback, or lease. A caller-side pump couples
-the scheduler to real capacity.
+own an executor, resource pool, callback, or lease. This caller-side pump
+sketch illustrates how the scheduler can be coupled to real capacity.
 
 Call the pump after all three events that can make progress possible:
 
@@ -129,7 +133,7 @@ final class ExecutorPump<F, J> {
 ```
 
 For a fixed executor with `D` immediately available workers, initialize the
-adapter by calling `onCapacityAvailable(D)` once. For a connection pool, signal
+example by calling `onCapacityAvailable(D)` once. For a connection pool, signal
 each connection only when ownership transfers to the pump, and return it in
 the completion path before pumping again.
 

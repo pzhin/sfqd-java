@@ -10,9 +10,11 @@ import java.util.Objects;
  * Pull-style example that connects an SFQ(D) scheduler to a bounded external resource pool.
  *
  * <p>The application remains responsible for computing cost and admitting payloads with
- * {@link SfqdScheduler#enqueue}. This adapter only demonstrates the dispatch/completion boundary. The configured
+ * {@link SfqdScheduler#enqueue}. This example only demonstrates the dispatch/completion boundary. The configured
  * scheduler depth must equal the number of resources that the pool can issue concurrently. Callers report only
  * resources that are actually free and must not report the same free resource more than once.
+ *
+ * <p>This class is not a reusable production resource-pool adapter.
  *
  * <p>Each call pulls at most one dispatch at a time before handing it to the pool. This is intentional: a batch is
  * irrevocably running when {@link SfqdScheduler#dispatchUpTo} returns, so pulling a whole batch before submitting
@@ -28,7 +30,7 @@ public final class BoundedResourcePoolIntegration<F, J, T> {
     private final int resourceParallelism;
 
     /**
-     * Creates an adapter for a scheduler and resource pool with the same concurrency bound.
+     * Creates an example integration for a scheduler and resource pool with the same concurrency bound.
      *
      * @param scheduler application-owned scheduler
      * @param resourcePool application-owned bounded resource pool
@@ -57,10 +59,11 @@ public final class BoundedResourcePoolIntegration<F, J, T> {
      * <p>Every returned dispatch is already running. A synchronous pool rejection therefore completes the handle; it
      * never rolls the dispatch back. Once an accepted task terminates, the pool callback completes the handle and
      * immediately offers the released resource again. If fewer jobs are available than resources, the return value
-     * identifies the resources that remain free; this adapter never acquires or retains them.
+     * identifies the resources that remain free; this example never acquires or retains them.
      *
-     * <p>This method is safe to invoke concurrently, but correct physical capacity accounting remains the caller's
-     * responsibility. A pool callback may also invoke it reentrantly.
+     * <p>The example does not define coordination between concurrent capacity signals; correct physical capacity
+     * accounting and caller-side coordination remain the application's responsibility. A terminal callback must not
+     * be invoked synchronously from {@link ResourcePool#execute}.
      *
      * @param available resources observed to be free, in {@code [0, resourceParallelism]}
      * @return reported resources not assigned to a dispatch
@@ -108,9 +111,10 @@ public final class BoundedResourcePoolIntegration<F, J, T> {
     /**
      * Minimal boundary implemented by an application-specific bounded resource pool.
      *
-     * <p>If submission is accepted, this method returns normally and the pool must invoke {@code onTerminal} exactly
-     * once after the task reaches any terminal state, including success, failure, or cancellation. If submission is
-     * rejected, it must throw synchronously without retaining the task and must never invoke the callback.
+     * <p>If submission is accepted, this method returns normally and the pool must later invoke {@code onTerminal}
+     * exactly once after the task reaches any terminal state, including success, failure, or cancellation. The pool
+     * must not invoke the callback synchronously from {@code execute}. If submission is rejected, it must throw
+     * synchronously without retaining the task and must never invoke the callback.
      *
      * @param <T> task payload type
      */
@@ -120,7 +124,7 @@ public final class BoundedResourcePoolIntegration<F, J, T> {
          * Submits one task to a resource that the caller has observed to be free.
          *
          * @param task application payload
-         * @param onTerminal exactly-once terminal callback for an accepted task
+         * @param onTerminal exactly-once terminal callback for an accepted task, invoked only after this method returns
          * @throws RuntimeException if the task is not accepted
          */
         void execute(T task, Runnable onTerminal);

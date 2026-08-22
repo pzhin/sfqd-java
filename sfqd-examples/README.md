@@ -1,8 +1,10 @@
-# Bounded resource-pool integration
+# Bounded resource-pool lifecycle example
 
-`BoundedResourcePoolIntegration` is a compiled and tested production-oriented
-example. It demonstrates only the lifecycle boundary between an application,
-SFQ(D), and a bounded external resource pool:
+`BoundedResourcePoolIntegration` is a compiled and tested lifecycle example,
+not a reusable production adapter. It demonstrates only the lifecycle boundary
+between an application, SFQ(D), and a bounded external resource pool. The
+`sfqd-examples` module is not part of `sfqd-core` and is skipped during Maven
+deployment.
 
 ```text
 application computes cost
@@ -53,18 +55,22 @@ entry point and lifecycle assertions are part of the normal build gate.
    free now. Never report the same free resource twice.
 3. Every `Dispatch` returned by the scheduler is already running and cannot be
    rolled back.
-4. If submission throws, the adapter calls `complete()` for that dispatch
-   before propagating the failure.
+4. If submission throws, the example integration calls `complete()` for that
+   dispatch before propagating the failure.
 5. For an accepted task, the pool invokes its terminal callback exactly once
-   after success, failure, or cancellation. The callback calls `complete()`.
+   after success, failure, or cancellation. It must invoke the callback only
+   after `ResourcePool.execute()` returns. The callback calls `complete()`.
 6. The terminal callback offers the released resource to the scheduler again.
 7. `onResourcesAvailable` returns the number of reported resources that SFQ(D)
-   did not use. Those resources remain free; the adapter never acquires them.
+   did not use. Those resources remain free; the example never acquires them.
 
-The adapter pulls one dispatch at a time with `dispatchUpTo(1)`. A whole
+The example pulls one dispatch at a time with `dispatchUpTo(1)`. A whole
 batch would become running atomically before the first pool submission. If
 that submission failed, later batch entries could otherwise be left running
 without ever reaching the pool.
+
+The example does not define coordination between concurrent capacity signals;
+that policy belongs to the application and its resource pool.
 
 The application still computes cost and owns admission:
 
@@ -78,6 +84,6 @@ integration.onResourcesAvailable(available);
 
 See
 [`BoundedResourcePoolIntegration.java`](src/main/java/io/github/pzhin/sfqd/examples/BoundedResourcePoolIntegration.java)
-for the adapter and
+for the example integration and
 [`BoundedResourcePoolExample.java`](src/main/java/io/github/pzhin/sfqd/examples/BoundedResourcePoolExample.java)
 for the runnable walkthrough.

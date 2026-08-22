@@ -136,17 +136,17 @@ for (Dispatch<String, String, Runnable> dispatch
 already dispatched and must eventually be completed, even when submission to
 your executor fails.
 
-For a real executor or connection pool, use a pump that couples external
-capacity to dispatch and runs after every accepted enqueue, every completion,
-and every external capacity signal. See the
-[production executor pump example](docs/EXECUTOR_INTEGRATION.md).
+One integration option is a pump that couples external capacity to dispatch
+and runs after every accepted enqueue, every completion, and every external
+capacity signal. See the
+[minimal executor lifecycle example](docs/EXECUTOR_INTEGRATION.md).
 
-## Bounded resource-pool integration
+## Bounded resource-pool lifecycle example
 
-For a production-oriented lifecycle example, see the compiled and tested
-[`sfqd-examples` bounded resource-pool adapter](sfqd-examples/README.md). It
-keeps cost computation and resource ownership in the application while making
-these integration rules explicit:
+For a compiled and tested lifecycle example, see the
+[`sfqd-examples` bounded resource-pool example](sfqd-examples/README.md). It is
+not a reusable production adapter. It keeps cost computation and resource
+ownership in the application while making these integration rules explicit:
 
 - configure `D` to equal the pool's maximum concurrently issued resources;
 - report only capacity that is actually free;
@@ -390,8 +390,8 @@ measurement protocol.
 ## Further documentation
 
 - [Practical and normative operation contract](docs/FORMAL_SPEC.md)
-- [Production executor pump integration](docs/EXECUTOR_INTEGRATION.md)
-- [Bounded resource-pool integration](sfqd-examples/README.md)
+- [Minimal executor lifecycle example](docs/EXECUTOR_INTEGRATION.md)
+- [Bounded resource-pool lifecycle example](sfqd-examples/README.md)
 - [Theory in plain language and full papers](docs/THEORY.md)
 - [Build, CI, artifact, and publication checks](docs/TOOLING.md)
 - [Benchmark workload guide](sfqd-benchmarks/README.md)
