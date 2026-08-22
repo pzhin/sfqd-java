@@ -212,9 +212,13 @@ live job globally, the immediate idle reset clears this charge.
 
 ### Close a flow
 
-`closeFlow(flowHandle)` succeeds only for an inactive flow and only while the
-scheduler is globally idle. This keeps registration removal separate from an
-active scheduling period.
+`closeFlow(flowHandle)` succeeds for an inactive flow once its finish tag is
+no greater than current virtual time. An unused flow can therefore be closed
+immediately, and an old tenant can be deregistered during continuous traffic
+as soon as its fairness debt has been repaid. If `lastFinish > V`, the method
+returns `FAIRNESS_DEBT_ACTIVE`; retry after scheduling progress. This condition
+also makes close followed by registration with a different weight safe: the
+old and new identities would both assign the next job start tag `V`.
 
 ### Inspect state
 

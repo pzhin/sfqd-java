@@ -3,6 +3,8 @@ package io.github.pzhin.sfqd;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class SfqdFlowHistoryTest {
@@ -29,6 +31,39 @@ class SfqdFlowHistoryTest {
         }
 
         assertEquals(chargedNext, scheduler.capacityAvailable(1).getFirst().jobHandle());
+    }
+
+    @Test
+    void closesInactiveFlowAfterVirtualTimeRepaysItsFinishTagDebt() {
+        SfqdScheduler<String, String, Object> scheduler =
+                new SfqdScheduler<>(new SchedulerConfig(1, 2, 12));
+        FlowHandle historical = registered(scheduler.registerFlow("historical", 1L));
+        FlowHandle anchor = registered(scheduler.registerFlow("anchor", 1L));
+        JobHandle historicalJob = accepted(
+                scheduler.enqueue(historical, "historical-job", new Object(), 10L));
+        List<JobHandle> anchorJobs = new ArrayList<>();
+        for (int index = 0; index <= 10; index++) {
+            anchorJobs.add(accepted(
+                    scheduler.enqueue(anchor, "anchor-" + index, new Object(), 1L)));
+        }
+        assertEquals(historicalJob, scheduler.capacityAvailable(1).getFirst().jobHandle());
+        assertEquals(CompletionResult.COMPLETED, scheduler.complete(historicalJob));
+
+        assertEquals(CloseFlowResult.FAIRNESS_DEBT_ACTIVE, scheduler.closeFlow(historical));
+        for (int index = 0; index < 10; index++) {
+            Dispatch<String, String, Object> anchorJob = scheduler.capacityAvailable(1).getFirst();
+            assertEquals(anchorJobs.get(index), anchorJob.jobHandle());
+            assertEquals("anchor-" + index, anchorJob.jobId());
+            assertEquals(CompletionResult.COMPLETED, scheduler.complete(anchorJob.jobHandle()));
+        }
+        Dispatch<String, String, Object> frontier = scheduler.capacityAvailable(1).getFirst();
+        assertEquals(anchorJobs.get(10), frontier.jobHandle());
+        assertEquals("anchor-10", frontier.jobId());
+
+        assertEquals(CloseFlowResult.CLOSED, scheduler.closeFlow(historical));
+        FlowHandle reweighted = registered(scheduler.registerFlow("historical", 100L));
+        assertEquals(2, scheduler.snapshot().registeredFlows());
+        assertEquals(CloseFlowResult.CLOSED, scheduler.closeFlow(reweighted));
     }
 
     @Test

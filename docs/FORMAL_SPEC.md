@@ -309,7 +309,7 @@ Production implementation МОЖЕТ хранить эквивалентное �
 Registration и activity ортогональны. Flow state и `lastFinish` сохраняются при
 active → inactive внутри непустого busy period. Вес неизменяем весь registration
 lifetime, включая inactive intervals. Смена веса разрешена только как
-успешный `closeFlow`, затем новая `registerFlow` с новым FlowHandle.
+успешный debt-safe `closeFlow`, затем новая `registerFlow` с новым FlowHandle.
 
 ### 4.2 Инварианты
 
@@ -348,9 +348,10 @@ REGISTERED_ACTIVE --last terminal-> REGISTERED_INACTIVE
 REGISTERED_INACTIVE --closeFlow---> ABSENT
 ```
 
-`closeFlow` разрешён только при одновременно inactive flow и глобально пустом
-scheduler. Поэтому удаление registration никогда не сбрасывает fairness
-identity внутри busy period.
+`closeFlow` разрешён только для inactive flow с `lastFinish <= V`. При этом
+сохранённая identity и новая registration дали бы следующему job один и тот же
+start tag `V`, поэтому удаление не стирает действующий fairness debt. Условие
+может выполниться как после global idle reset, так и внутри busy period.
 
 Lifecycle одного JobHandle:
 
@@ -492,15 +493,17 @@ Null handle — invalid argument. Для foreign, stale или уже закры
 вернуть `FLOW_NOT_REGISTERED`.
 
 - Если registered flow active, вернуть `FLOW_ACTIVE`.
-- Если flow inactive, но `Queued union Running` непусто, вернуть
-  `BUSY_PERIOD_ACTIVE`.
-- Если flow inactive и scheduler глобально пуст, атомарно удалить его из
+- Если flow inactive, но `lastFinish > V`, вернуть
+  `FAIRNESS_DEBT_ACTIVE`.
+- Если flow inactive и `lastFinish <= V`, атомарно удалить его из
   `RegisteredFlows` и `RegisteredById`, освободить internal `FlowId` reference
   и вернуть `CLOSED`.
 
-Успешное закрытие возможно только после global idle reset §3.4, поэтому
-`lastFinish` уже zero. Оно разрешает повторную регистрацию того же `FlowId`,
-но новый FlowHandle получает новый sequence.
+Условие закрытия fairness-neutral, поскольку при сохранении старой identity
+следующий enqueue получил бы `S=max(V,lastFinish)=V`, а новая registration с
+`lastFinish=0` также получит `S=V`. Global idle reset §3.4 является достаточным,
+но не обязательным способом достичь этого условия. Успех разрешает повторную
+регистрацию того же `FlowId`, но новый FlowHandle получает новый sequence.
 
 ### 7.3 `enqueue(flowHandle, jobId, payload, cost)`
 
@@ -630,7 +633,7 @@ commit/observation:
 | `registerFlow/*rejection*` | atomic observation первой применимой registration проверки; state не меняется |
 | `closeFlow/CLOSED` | atomic removal из `RegisteredFlows` и `RegisteredById` |
 | `closeFlow/FLOW_ACTIVE` | atomic observation ненулевого flow job count |
-| `closeFlow/BUSY_PERIOD_ACTIVE` | atomic observation inactive flow при непустом global live set |
+| `closeFlow/FAIRNESS_DEBT_ACTIVE` | atomic observation inactive flow с `lastFinish > V` |
 | `closeFlow/FLOW_NOT_REGISTERED` | atomic observation отсутствия exact capability в registry |
 | `enqueue/ACCEPTED` | atomic commit вставки job, flow/tag updates, sequence и counter |
 | `enqueue/*rejection*` | atomic observation, на котором выполнена первая применимая проверка результата; state не меняется |
@@ -675,31 +678,27 @@ Rebase, busy-period reset и payload release являются частью LP в
   LP раньше, enqueue возвращает `FLOW_NOT_REGISTERED`. Rejected enqueue
   (`DUPLICATE_LIVE_ID`, `LIVE_LIMIT`, `SEQUENCE_EXHAUSTED`, `NUMERIC_LIMIT` или
   иной rejection) — atomic no-op: если его LP раньше close, close вычисляет
-  `CLOSED`, `BUSY_PERIOD_ACTIVE` или `FLOW_ACTIVE` только по неизменённому
+  `CLOSED`, `FAIRNESS_DEBT_ACTIVE` или `FLOW_ACTIVE` только по неизменённому
   предшествующему state. Job не может ссылаться на удалённый flow.
 - `closeFlow` inactive flow против последнего completion/cancel другого flow:
-  close до terminal LP возвращает `BUSY_PERIOD_ACTIVE`; terminal LP сначала
-  выполняет global reset, после чего close может вернуть `CLOSED`.
+  если до terminal LP `lastFinish > V`, close возвращает
+  `FAIRNESS_DEBT_ACTIVE`; terminal LP сначала выполняет global reset, после
+  чего close может вернуть `CLOSED`. Если debt уже погашен, close может вернуть
+  `CLOSED` и до terminal LP.
 - Concurrent registrations при `maxFlows` не могут вместе превысить limit;
   LP order даёт лишнему вызову `FLOW_LIMIT`. Register того же `FlowId` против
   close старой registration даёт либо `DUPLICATE_REGISTERED_ID`, либо новый
   distinct FlowHandle после `CLOSED`.
 - `closeFlow` против enqueue, требующего rebase: rebase существует только как
-  часть `enqueue/ACCEPTED` LP. Ненулевой rebase возможен только внутри
-  непустого busy period: global-idle transition уже обнулил бы `V` и все
-  `lastFinish`. Поэтому для того же inactive flow close-first возвращает
-  `BUSY_PERIOD_ACTIVE`, сохраняет registration, а последующий enqueue всё ещё
-  может вернуть `ACCEPTED` и атомарно выполнить rebase. Enqueue/rebase-first
-  активирует flow, после чего close возвращает `FLOW_ACTIVE`. История
-  `closeFlow/CLOSED` затем `enqueue/FLOW_NOT_REGISTERED` для одного valid
-  FlowHandle недостижима, если enqueue действительно требует ненулевого
-  rebase; она остаётся допустимой только для общего close-versus-enqueue race
-  вне этой специальной предпосылки. `enqueue/NUMERIC_LIMIT` отбрасывает всю
-  temporary copy и НЕ выполняет observable rebase; для того же inactive flow
-  close по-прежнему видит непустой busy period и возвращает
-  `BUSY_PERIOD_ACTIVE`. Если accepted enqueue/rebase относится к другому flow,
-  inactive registration остаётся в rebase set, а close также возвращает
-  `BUSY_PERIOD_ACTIVE`.
+  часть `enqueue/ACCEPTED` LP. Enqueue/rebase-first активирует flow, после чего
+  close возвращает `FLOW_ACTIVE`. Close-first возвращает `CLOSED`, если
+  `lastFinish <= V`, и последующий enqueue даёт `FLOW_NOT_REGISTERED`; при
+  `lastFinish > V` close возвращает `FAIRNESS_DEBT_ACTIVE`, сохраняет
+  registration, и enqueue всё ещё может атомарно выполнить rebase.
+  `enqueue/NUMERIC_LIMIT` отбрасывает всю temporary copy, поэтому последующий
+  close решается по неизменённому сравнению `lastFinish` с `V`. Rebase другого
+  flow преобразует оба значения общей нормализацией §3.3 и сохраняет истинность
+  debt-safe условия.
 
 Эти правила обеспечивают history, эквивалентную некоторому допустимому
 последовательному execution. Cancel-versus-dispatch winner восстанавливается
@@ -731,17 +730,19 @@ Dispatch последнего queued job flow делает его non-backlogged
 
 После cancel/complete, уменьшившего оба flow counters до zero, registration,
 weight и `lastFinish` сохраняются. Последующий enqueue того же FlowHandle в
-этом busy period использует `max(V,lastFinish)`. Сменить weight или получить
-новую fairness identity нельзя до global idle и успешного `closeFlow`.
+этом busy period использует `max(V,lastFinish)`. Пока `lastFinish > V`, сменить
+weight или получить новую fairness identity нельзя. Когда `V` достигает
+`lastFinish`, registration можно безопасно закрыть, не меняя start tag
+следующего возможного job.
 
 Virtual charge cancelled job сохраняется даже после deactivation до global
 idle reset. Это намеренная non-retroactive semantics §6.1.
 
 ### 9.4 Registered → closed
 
-Inactive не означает closed. Только `closeFlow` при глобально пустом scheduler
-удаляет identity. Поскольку global idle reset сначала обнуляет все histories,
-close+register с другим weight не меняет ordering незавершённого busy period.
+Inactive не означает closed. `closeFlow` удаляет identity только при
+`lastFinish <= V`. Поэтому close+register, в том числе с другим weight, не
+уменьшает start tag следующего job: до и после операции он равен `V`.
 
 ## 10. Гарантии и границы claims
 
@@ -751,8 +752,8 @@ close+register с другим weight не меняет ordering незавер�
 - dispatch в неубывающем start-tag order;
 - `V` равен start tag последнего dispatch;
 - одновременно running не более `D`;
-- `D=1` даёт SFQ при том же tie rule и той же persistent flow identity; flow
-  registration нельзя заменить внутри busy period;
+- `D=1` даёт SFQ при том же tie rule; flow registration нельзя заменить, пока
+  её `lastFinish > V`;
 - при queued work, положительном `k` и свободном slot dispatch возвращает job;
 - один backlogged flow может занять все `D` slots.
 
@@ -777,17 +778,20 @@ registry/очередь, положительные fixed-for-registration weigh
 каждого dispatched job и продолжающиеся completion/dispatch calls. В этой
 спецификации `maxFlows/maxLiveJobs` дают конечность, а входные ranges дают
 `cost/weight >= 1/Long.MAX_VALUE`. Close/new identity внутри busy period
-запрещены. Без внешнего progress scheduler не может гарантировать dispatch.
+разрешены только после погашения debt, когда reset identity не уменьшает
+следующий start tag. Без внешнего progress scheduler не может гарантировать
+dispatch.
 
 Обязательный adversarial trace: accepted head victim остаётся queued с
 фиксированным `S_v`; competing registered flow после каждого completion
 временно становится inactive и re-enqueue-ится до следующего dispatch. Его
-`lastFinish` НЕ сбрасывается, поэтому start tags каждого следующего request
-растут минимум на его положительный normalized increment. При bounded registry
-и FIFO ties лишь конечное число requests может иметь key меньше key victim;
-victim должен быть dispatch-нут. Реализация, которая удаляет inactive flow или
-сбрасывает его `lastFinish` в непустом busy period, этот must-pass trace не
-проходит и не соответствует спецификации.
+`lastFinish` НЕ может быть сброшен, пока он больше `V`, поэтому start tags
+каждого следующего request растут минимум на его положительный normalized
+increment. После `lastFinish <= V` новая identity всё равно начинает с `V` и
+не получает меньший key. При bounded registry и FIFO ties лишь конечное число
+requests может иметь key меньше key victim; victim должен быть dispatch-нут.
+Реализация, которая удаляет inactive flow при `lastFinish > V`, этот must-pass
+trace не проходит и не соответствует спецификации.
 
 Work conservation означает: каждый вызов `capacityAvailable(k>0)` заполняет
 `min(k, freeSlots, queuedJobs)` issue slots. Это не обещание автоматического
@@ -828,7 +832,7 @@ Scheduler хранит `O(liveJobs + registeredFlows)` records. При
 | Tie | Ties arbitrary | Total key `(S, admission sequence)` |
 | Busy-period boundary | Plain §3.2 не даёт полного правила | При global idle `V` и `lastFinish` всех registrations обнуляются, registrations остаются |
 | Cancellation | Отсутствует | Только queued cancel; immutable tags, virtual charge сохраняется до global idle; fairness theorem scoped away from cancelled intervals |
-| Flow identity | Flow предполагается устойчивой алгоритмической сущностью, API lifecycle отсутствует | Bounded registration, persistent dormant `lastFinish`, close только inactive+global idle |
+| Flow identity | Flow предполагается устойчивой алгоритмической сущностью, API lifecycle отсутствует | Bounded registration, persistent dormant `lastFinish`, close только inactive с `lastFinish <= V` |
 | Job identity/duplicates | Отсутствуют | Inert never-reused capability handles, live-only JobId uniqueness, terminal `NOT_LIVE`, no tombstones |
 | Concurrency | Отсутствует | Linearizable atomic operations и exact LP table §8 |
 | Batch dispatch | Описано заполнение depth, без API atomicity | Один call выбирает последовательный SFQ(D) batch, но linearizes целиком |
