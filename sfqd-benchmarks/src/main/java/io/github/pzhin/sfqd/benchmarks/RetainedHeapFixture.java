@@ -33,6 +33,7 @@ public final class RetainedHeapFixture {
                 + " queuedJobs=" + options.queuedJobs()
                 + " runningJobs=" + options.runningJobs()
                 + " depth=" + options.depth()
+                + " weightModel=" + options.weightModel()
                 + " holdSeconds=" + options.holdSeconds());
         System.out.println("SNAPSHOT=" + snapshot);
         System.out.println("READY");
@@ -48,7 +49,8 @@ public final class RetainedHeapFixture {
                 new SfqdScheduler<>(new SchedulerConfig(options.depth(), options.flowCount(), maxLiveJobs));
         List<FlowHandle> flows = new ArrayList<>(options.flowCount());
         for (int index = 0; index < options.flowCount(); index++) {
-            RegisterFlowResult registration = scheduler.registerFlow(new FixtureFlow(index), 1L);
+            RegisterFlowResult registration = scheduler.registerFlow(
+                    new FixtureFlow(index), SchedulerBenchmarkSupport.weight(index, options.weightModel()));
             if (!(registration instanceof RegisterFlowResult.Registered registered)) {
                 throw new IllegalStateException("fixture registration rejected: " + registration);
             }
@@ -97,14 +99,22 @@ public final class RetainedHeapFixture {
      * @param queuedJobs requested queued-job count at readiness
      * @param runningJobs requested running-job count at readiness
      * @param depth scheduler issue depth
+     * @param weightModel equal or pairwise-coprime registered-flow weights
      * @param holdSeconds seconds to retain state, or zero to wait indefinitely
      */
-    private record FixtureArguments(int flowCount, int queuedJobs, int runningJobs, int depth, int holdSeconds) {
+    private record FixtureArguments(
+            int flowCount,
+            int queuedJobs,
+            int runningJobs,
+            int depth,
+            SchedulerBenchmarkSupport.WeightModel weightModel,
+            int holdSeconds) {
         private static FixtureArguments parse(String[] arguments) {
             int flowCount = -1;
             int queuedJobs = -1;
             int runningJobs = -1;
             int depth = -1;
+            SchedulerBenchmarkSupport.WeightModel weightModel = SchedulerBenchmarkSupport.WeightModel.EQUAL;
             int holdSeconds = 0;
             for (String argument : arguments) {
                 int separator = argument.indexOf('=');
@@ -112,9 +122,18 @@ public final class RetainedHeapFixture {
                     throw usage("invalid option: " + argument);
                 }
                 String name = argument.substring(2, separator);
+                String rawValue = argument.substring(separator + 1);
+                if (name.equals("weightModel")) {
+                    try {
+                        weightModel = SchedulerBenchmarkSupport.WeightModel.valueOf(rawValue);
+                    } catch (IllegalArgumentException invalidWeightModel) {
+                        throw usage("invalid weightModel");
+                    }
+                    continue;
+                }
                 int value;
                 try {
-                    value = Integer.parseInt(argument.substring(separator + 1));
+                    value = Integer.parseInt(rawValue);
                 } catch (NumberFormatException invalidNumber) {
                     throw usage("invalid integer for " + name);
                 }
@@ -137,12 +156,17 @@ public final class RetainedHeapFixture {
             if (totalJobs > Integer.MAX_VALUE) {
                 throw usage("queuedJobs + runningJobs exceeds Integer.MAX_VALUE");
             }
-            return new FixtureArguments(flowCount, queuedJobs, runningJobs, depth, holdSeconds);
+            if (weightModel == SchedulerBenchmarkSupport.WeightModel.PAIRWISE_COPRIME
+                    && flowCount > SchedulerBenchmarkSupport.MAX_PAIRWISE_COPRIME_FLOWS) {
+                throw usage("PAIRWISE_COPRIME supports at most 10000 flows");
+            }
+            return new FixtureArguments(flowCount, queuedJobs, runningJobs, depth, weightModel, holdSeconds);
         }
 
         private static IllegalArgumentException usage(String detail) {
             return new IllegalArgumentException(detail + "; required: --flowCount=N --queuedJobs=N "
-                    + "--runningJobs=N --depth=N [--holdSeconds=N]");
+                    + "--runningJobs=N --depth=N [--weightModel=EQUAL|PAIRWISE_COPRIME] "
+                    + "[--holdSeconds=N]");
         }
     }
 

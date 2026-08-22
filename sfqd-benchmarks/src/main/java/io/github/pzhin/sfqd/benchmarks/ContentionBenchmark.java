@@ -39,15 +39,15 @@ public class ContentionBenchmark {
     @State(Scope.Group)
     public static class GroupState {
         /** Number of genuinely active consumer flows. */
-        @Param({"1", "100", "10000"})
+        @Param({"1", "10", "100", "1000", "10000"})
         private int flowCount;
 
         /** Representative scheduler issue depth. */
-        @Param({"1", "8", "64", "256"})
+        @Param({"1", "16", "64", "256", "1024"})
         private int depth;
 
-        /** Representative uniform or weight-skewed distribution. */
-        @Param({"UNIFORM", "SKEWED_WEIGHTS"})
+        /** Equal-weight or pairwise-coprime distribution. */
+        @Param({"UNIFORM", "PAIRWISE_COPRIME_WEIGHTS"})
         private Scenario scenario;
 
         private Fixture fixture;

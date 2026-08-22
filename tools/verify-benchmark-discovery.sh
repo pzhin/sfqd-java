@@ -32,6 +32,8 @@ io.github.pzhin.sfqd.benchmarks.OperationLatencyBenchmark.dispatchOne
 io.github.pzhin.sfqd.benchmarks.OperationLatencyBenchmark.enqueueBackloggedTail
 io.github.pzhin.sfqd.benchmarks.OperationLatencyBenchmark.enqueueFirstBusyPeriod
 io.github.pzhin.sfqd.benchmarks.OperationLatencyBenchmark.enqueueInactiveFlow
+io.github.pzhin.sfqd.benchmarks.PerformanceScaleBenchmark.continuousBusyPeriodCycle
+io.github.pzhin.sfqd.benchmarks.PerformanceScaleBenchmark.dispatchBatch
 io.github.pzhin.sfqd.benchmarks.SteadyStateCycleBenchmark.batchCycle
 io.github.pzhin.sfqd.benchmarks.SteadyStateCycleBenchmark.singleJobCycle
 EOF
@@ -44,8 +46,8 @@ if [[ "$actual" != "$expected" ]]; then
 fi
 
 count=$(printf '%s\n' "$actual" | wc -l | tr -d ' ')
-if [[ "$count" != 23 ]]; then
-  echo "ERROR: expected 23 benchmarks, found $count" >&2
+if [[ "$count" != 25 ]]; then
+  echo "ERROR: expected 25 benchmarks, found $count" >&2
   exit 1
 fi
 

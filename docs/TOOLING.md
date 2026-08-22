@@ -67,10 +67,13 @@ are not test failures; forbidden test outcomes are.
 java -jar sfqd-benchmarks/target/sfqd-benchmarks.jar -l
 ```
 
-Verification compiles the generated JMH metadata and runs a bounded 60-case
-fixture smoke. It does not claim a performance result. Long measurements are
-optional, machine-specific work and are intentionally not committed to the
-release branch.
+Verification compiles the generated JMH metadata, runs a bounded 60-case
+idle-reset fixture smoke, and exercises three representative performance-scale
+fixtures. The largest smoke fixture is `B=10_000`, `Q=100_000`, and
+`depth=1_024`; completing one invariant-checked cycle proves wiring and state
+restoration, not throughput or latency. Long measurements are optional,
+machine-specific work and are intentionally not committed to the release
+branch.
 
 ## Reproducible archives
 

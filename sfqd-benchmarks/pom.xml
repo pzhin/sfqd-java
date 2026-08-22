@@ -79,6 +79,15 @@
               <classpathScope>runtime</classpathScope>
             </configuration>
           </execution>
+          <execution>
+            <id>performance-scale-workload-smoke</id>
+            <phase>verify</phase>
+            <goals><goal>java</goal></goals>
+            <configuration>
+              <mainClass>io.github.pzhin.sfqd.benchmarks.PerformanceScaleWorkloadSmoke</mainClass>
+              <classpathScope>runtime</classpathScope>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
       <plugin>
