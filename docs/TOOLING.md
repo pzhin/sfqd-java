@@ -60,15 +60,15 @@ The Java artifact verifier also inserts the project license into the source and
 JavaDoc JARs without invoking platform-specific archive tools. Both the unit
 gate and artifact verifier compare compiled output with
 `sfqd-core/src/main/api/public-api.txt`; adding a documented public member to an
-existing type therefore fails the build. Before the first release, regenerate
-the candidate manifest after compilation with:
+existing type therefore fails the build. Before an intentional public API
+change, regenerate the candidate manifest after compilation with:
 
 ```shell
 java -cp sfqd-core/target/test-classes:sfqd-core/target/classes \
   io.github.pzhin.sfqd.build.PublicApiManifest sfqd-core/target/classes
 ```
 
-Review and commit the output only for an intentional API change. After `0.1.0`,
+Review and commit the output only for an intentional API change. After `1.0.0`,
 artifact-to-artifact compatibility checking with Revapi or japicmp should use
 the previous published release as its baseline; the manifest remains the
 fail-closed exact-surface gate for the current release line.
@@ -133,9 +133,39 @@ deleted afterward.
 There is no external `distributionManagement` target. An ordinary deploy
 without an explicit alternate repository therefore fails instead of publishing
 somewhere unexpected. The source branch records the Maven coordinates, Java
-package, Apache-2.0 license, project URL, SCM, and developer metadata. A public
-release still requires a non-snapshot release decision, destination
-configuration, credentials, signing policy, tag, and release notes.
+package, Apache-2.0 license, project URL, SCM, and developer metadata.
+
+## Maven Central release
+
+The `release` profile signs and publishes only `sfqd-java-parent` and
+`sfqd-core`. Examples, coverage, jcstress, and benchmark artifacts retain
+`maven.deploy.skip=true` and are not published. The profile uses Sonatype's
+Central Publishing Maven Plugin, requests automatic publication after
+validation, and waits for the deployment to reach `published`.
+
+Before running the profile, the release engineer must have:
+
+- publishing access to the verified `io.github.pzhin` namespace;
+- a Maven Central user token in the `central` server entry of the user-level
+  Maven `settings.xml`;
+- a primary PGP signing key available to GnuPG and distributed through a key
+  server supported by Maven Central;
+- an unlocked GnuPG agent, or `MAVEN_GPG_PASSPHRASE` supplied through a secure
+  environment mechanism.
+
+Publish the immutable 1.0.0 coordinates from the commit tagged `v1.0.0`:
+
+```shell
+./mvnw --batch-mode --no-transfer-progress -Prelease clean deploy
+```
+
+The release profile is opt-in. Normal `verify`, `install`, local publication
+topology checks, and consumer builds do not need Maven Central credentials or a
+PGP secret key.
+
+Release wiring can be exercised without network publication by adding
+`-Dcentral.publish.skip=true`. This switch does not skip compilation, tests,
+artifact generation, or PGP signing.
 
 ## CI jobs
 

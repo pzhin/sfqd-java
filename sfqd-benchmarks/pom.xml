@@ -6,7 +6,7 @@
   <parent>
     <groupId>io.github.pzhin</groupId>
     <artifactId>sfqd-java-parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
   </parent>
   <artifactId>sfqd-benchmarks</artifactId>
   <name>SFQ(D) JMH Harness</name>

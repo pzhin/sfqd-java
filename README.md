@@ -8,15 +8,11 @@ Use it when several tenants, queues, users, or workloads share a bounded
 number of execution slots and should receive service in proportion to their
 weights.
 
-Canonical repository: <https://github.com/pzhin/sfqd-java>
-
 ## Status
 
-The implementation, tests, JavaDoc, concurrency harness, and benchmark
-harness are complete. The source branch uses the pre-release coordinates
-`io.github.pzhin:sfqd-core:0.1.0-SNAPSHOT` and Java package
-`io.github.pzhin.sfqd`. No artifact has been published to a public Maven
-repository yet.
+Version 1.0.0 is the first stable release. The library is published to Maven
+Central as `io.github.pzhin:sfqd-core:1.0.0` and uses the Java package
+`io.github.pzhin.sfqd`.
 
 The benchmark harness is an executable measurement protocol, not a benchmark
 result. This repository intentionally contains no raw machine-specific runs,
@@ -47,7 +43,7 @@ On Windows Command Prompt or PowerShell:
 .\mvnw.cmd --batch-mode --no-transfer-progress clean verify
 ```
 
-Install the snapshot into your local Maven repository:
+Install the release into your local Maven repository:
 
 ```shell
 ./mvnw --batch-mode --no-transfer-progress install
@@ -61,7 +57,7 @@ Then add it to a local consumer:
 <dependency>
   <groupId>io.github.pzhin</groupId>
   <artifactId>sfqd-core</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 
@@ -434,4 +430,5 @@ measurement protocol.
 - [Bounded resource-pool lifecycle example](sfqd-examples/README.md)
 - [Theory in plain language and full papers](docs/THEORY.md)
 - [Build, CI, artifact, and publication checks](docs/TOOLING.md)
+- [Release history](CHANGELOG.md)
 - [Benchmark workload guide](sfqd-benchmarks/README.md)

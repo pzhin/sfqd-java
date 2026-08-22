@@ -100,8 +100,8 @@ PY
 )
 
 readonly GROUP_DIRECTORY="${DEPLOY_REPOSITORY}/io/github/pzhin"
-readonly PARENT_DIRECTORY="${GROUP_DIRECTORY}/sfqd-java-parent/0.1.0-SNAPSHOT"
-readonly CORE_DIRECTORY="${GROUP_DIRECTORY}/sfqd-core/0.1.0-SNAPSHOT"
+readonly PARENT_DIRECTORY="${GROUP_DIRECTORY}/sfqd-java-parent/1.0.0"
+readonly CORE_DIRECTORY="${GROUP_DIRECTORY}/sfqd-core/1.0.0"
 
 shopt -s nullglob
 parent_poms=("${PARENT_DIRECTORY}"/*.pom)
@@ -143,7 +143,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
-expected_parent = ("io.github.pzhin", "sfqd-java-parent", "0.1.0-SNAPSHOT")
+expected_parent = ("io.github.pzhin", "sfqd-java-parent", "1.0.0")
 
 parent = ET.parse(sys.argv[1]).getroot()
 parent_coordinates = tuple(
@@ -209,7 +209,7 @@ expected_scm = (
     "scm:git:https://github.com/pzhin/sfqd-java.git",
     "scm:git:ssh://git@github.com/pzhin/sfqd-java.git",
     "https://github.com/pzhin/sfqd-java",
-    "HEAD",
+    "v1.0.0",
 )
 if scm_metadata != expected_scm:
     raise SystemExit(
@@ -235,7 +235,7 @@ effective_core_coordinates = tuple(
     effective_core.findtext(f"m:{name}", namespaces=namespace)
     for name in ("groupId", "artifactId", "version")
 )
-expected_core = ("io.github.pzhin", "sfqd-core", "0.1.0-SNAPSHOT")
+expected_core = ("io.github.pzhin", "sfqd-core", "1.0.0")
 if effective_core_coordinates != expected_core:
     raise SystemExit(
         "ERROR: effective core coordinates are "
@@ -306,14 +306,14 @@ cat >"${CONSUMER_ROOT}/pom.xml" <<EOF
       <id>publication-smoke</id>
       <url>${DEPLOY_REPOSITORY_URI}</url>
       <releases><enabled>true</enabled></releases>
-      <snapshots><enabled>true</enabled><updatePolicy>always</updatePolicy></snapshots>
+      <snapshots><enabled>false</enabled></snapshots>
     </repository>
   </repositories>
   <dependencies>
     <dependency>
       <groupId>io.github.pzhin</groupId>
       <artifactId>sfqd-core</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>1.0.0</version>
     </dependency>
   </dependencies>
   <build>
@@ -339,12 +339,12 @@ final class Consumer {
 EOF
 
 LC_ALL=C LANG=C TZ=UTC "${REPOSITORY_ROOT}/mvnw" \
-  --batch-mode --no-transfer-progress --update-snapshots \
+  --batch-mode --no-transfer-progress \
   -Dmaven.repo.local="${CONSUMER_LOCAL_REPOSITORY}" \
   -f "${CONSUMER_ROOT}/pom.xml" clean compile
 
-readonly RESOLVED_PARENT="${CONSUMER_LOCAL_REPOSITORY}/io/github/pzhin/sfqd-java-parent/0.1.0-SNAPSHOT"
-readonly RESOLVED_CORE="${CONSUMER_LOCAL_REPOSITORY}/io/github/pzhin/sfqd-core/0.1.0-SNAPSHOT"
+readonly RESOLVED_PARENT="${CONSUMER_LOCAL_REPOSITORY}/io/github/pzhin/sfqd-java-parent/1.0.0"
+readonly RESOLVED_CORE="${CONSUMER_LOCAL_REPOSITORY}/io/github/pzhin/sfqd-core/1.0.0"
 if [[ ! -f "${RESOLVED_PARENT}/_remote.repositories" ]]; then
   fail "fresh consumer did not resolve the published parent"
 fi
