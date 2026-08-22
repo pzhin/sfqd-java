@@ -138,14 +138,17 @@ final class ApiVocabularyTest {
                 3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE, BigInteger.valueOf(2L));
         assertEquals(3, flowSnapshot.queuedJobs());
         assertEquals(4, flowSnapshot.runningJobs());
-        assertEquals(BigInteger.TEN, flowSnapshot.acceptedCost());
-        assertEquals(BigInteger.valueOf(6L), flowSnapshot.dispatchedCost());
-        assertEquals(BigInteger.ONE, flowSnapshot.cancelledCost());
-        assertEquals(BigInteger.valueOf(3L), flowSnapshot.queuedCost());
+        assertEquals(BigInteger.TEN, flowSnapshot.acceptedSuppliedCost());
+        assertEquals(BigInteger.valueOf(6L), flowSnapshot.dispatchedSuppliedCost());
+        assertEquals(BigInteger.ONE, flowSnapshot.cancelledSuppliedCost());
+        assertEquals(BigInteger.valueOf(3L), flowSnapshot.queuedSuppliedCost());
         assertEquals(BigInteger.valueOf(2L), flowSnapshot.runningSuppliedCost());
         assertEquals(BigInteger.valueOf(4L), flowSnapshot.completedSuppliedCost());
-        assertTrue(flowSnapshot.toString().contains("acceptedCost=10"));
+        assertTrue(flowSnapshot.toString().contains("acceptedSuppliedCost=10"));
         assertTrue(flowSnapshot.toString().contains("runningSuppliedCost=2"));
+        assertFalse(Arrays.stream(FlowSnapshot.class.getMethods())
+                .map(Method::getName)
+                .anyMatch(List.of("acceptedCost", "dispatchedCost", "cancelledCost", "queuedCost")::contains));
         assertEquals(flowSnapshot, new FlowSnapshot(
                 3, 4, BigInteger.TEN, BigInteger.valueOf(6L), BigInteger.ONE, BigInteger.valueOf(2L)));
         assertEquals(flowSnapshot.hashCode(), new FlowSnapshot(

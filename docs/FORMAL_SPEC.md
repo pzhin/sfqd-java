@@ -680,25 +680,25 @@ registration, the operation returns an immutable `FlowSnapshot`:
 
 ```text
 queuedJobs, runningJobs,
-acceptedCost, dispatchedCost, cancelledCost,
-runningSuppliedCost, completedSuppliedCost
+acceptedSuppliedCost, dispatchedSuppliedCost, cancelledSuppliedCost,
+queuedSuppliedCost, runningSuppliedCost, completedSuppliedCost
 ```
 
 Job counts describe current state. Cost values are exact non-negative integers.
 Cumulative totals cover the lifetime of this registration, while gauges
 describe current state:
 
-- `acceptedCost` increases only on successful enqueue;
-- `dispatchedCost` increases for each job in a successful dispatch batch;
-- `cancelledCost` increases only on successful queued cancel;
-- current `queuedCost = acceptedCost - dispatchedCost - cancelledCost`;
+- `acceptedSuppliedCost` increases only on successful enqueue;
+- `dispatchedSuppliedCost` increases for each job in a successful dispatch batch;
+- `cancelledSuppliedCost` increases only on successful queued cancel;
+- current `queuedSuppliedCost = acceptedSuppliedCost - dispatchedSuppliedCost - cancelledSuppliedCost`;
 - `runningSuppliedCost` increases on dispatch and decreases on completion;
-- `completedSuppliedCost = dispatchedCost - runningSuppliedCost`.
+- `completedSuppliedCost = dispatchedSuppliedCost - runningSuppliedCost`.
 
-`runningSuppliedCost` and `completedSuppliedCost` describe caller-supplied
-service estimates, not actual execution time. Completion does not change the
-cumulative `dispatchedCost`, which includes running and completed jobs. Failed
-and no-op outcomes do not change the snapshot. Cost values do **not** overflow:
+All six cost values describe caller-supplied service estimates, not actual
+execution time or resource service. Completion does not change the cumulative
+`dispatchedSuppliedCost`, which includes running and completed jobs. Failed and
+no-op outcomes do not change the snapshot. Cost values do **not** overflow:
 exact integers represent them, and the global never-reused job sequence bounds
 each value by
 `Long.MAX_VALUE * Long.MAX_VALUE`.

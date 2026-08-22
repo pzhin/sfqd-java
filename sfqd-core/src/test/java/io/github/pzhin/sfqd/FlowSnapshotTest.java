@@ -22,10 +22,10 @@ final class FlowSnapshotTest {
         FlowSnapshot queued = scheduler.snapshot(flow).orElseThrow();
         assertEquals(2, queued.queuedJobs());
         assertEquals(0, queued.runningJobs());
-        assertEquals(twiceMaximum, queued.acceptedCost());
-        assertEquals(BigInteger.ZERO, queued.dispatchedCost());
-        assertEquals(BigInteger.ZERO, queued.cancelledCost());
-        assertEquals(twiceMaximum, queued.queuedCost());
+        assertEquals(twiceMaximum, queued.acceptedSuppliedCost());
+        assertEquals(BigInteger.ZERO, queued.dispatchedSuppliedCost());
+        assertEquals(BigInteger.ZERO, queued.cancelledSuppliedCost());
+        assertEquals(twiceMaximum, queued.queuedSuppliedCost());
         assertEquals(BigInteger.ZERO, queued.runningSuppliedCost());
         assertEquals(BigInteger.ZERO, queued.completedSuppliedCost());
 
@@ -40,9 +40,9 @@ final class FlowSnapshotTest {
         FlowSnapshot afterCancellation = scheduler.snapshot(flow).orElseThrow();
         assertEquals(0, afterCancellation.queuedJobs());
         assertEquals(1, afterCancellation.runningJobs());
-        assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.dispatchedCost());
-        assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.cancelledCost());
-        assertEquals(BigInteger.ZERO, afterCancellation.queuedCost());
+        assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.dispatchedSuppliedCost());
+        assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.cancelledSuppliedCost());
+        assertEquals(BigInteger.ZERO, afterCancellation.queuedSuppliedCost());
         assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.runningSuppliedCost());
         assertEquals(BigInteger.ZERO, afterCancellation.completedSuppliedCost());
 
@@ -97,12 +97,13 @@ final class FlowSnapshotTest {
     }
 
     private static FlowSnapshot snapshot(
-            int queuedJobs, int runningJobs, long acceptedCost, long dispatchedCost, long cancelledCost) {
+            int queuedJobs, int runningJobs, long acceptedSuppliedCost, long dispatchedSuppliedCost,
+            long cancelledSuppliedCost) {
         return new FlowSnapshot(
                 queuedJobs, runningJobs,
-                BigInteger.valueOf(acceptedCost),
-                BigInteger.valueOf(dispatchedCost),
-                BigInteger.valueOf(cancelledCost),
+                BigInteger.valueOf(acceptedSuppliedCost),
+                BigInteger.valueOf(dispatchedSuppliedCost),
+                BigInteger.valueOf(cancelledSuppliedCost),
                 BigInteger.ZERO);
     }
 
