@@ -490,11 +490,13 @@ class SfqdDeterministicConcurrencyTest {
     }
 
     @Test
-    void inactiveCloseRacingLastCompletionObservesWholeBusyPeriodTransition() {
-        SfqdScheduler<String, String, String> scheduler = scheduler(1, 2, 1);
+    void indebtedCloseRacingLastCompletionObservesWholeBusyPeriodTransition() {
+        SfqdScheduler<String, String, String> scheduler = scheduler(1, 2, 2);
         FlowHandle active = registered(scheduler.registerFlow("active", 1L));
         FlowHandle inactive = registered(scheduler.registerFlow("inactive", 1L));
+        JobHandle debt = accepted(scheduler.enqueue(inactive, "debt", "debt-p", 1L));
         JobHandle running = accepted(scheduler.enqueue(active, "job", "p", 1L));
+        assertEquals(CancelResult.CANCELLED, scheduler.cancel(debt));
         scheduler.capacityAvailable(1);
 
         RaceResult<CloseFlowResult, CompletionResult> race = race(
@@ -502,12 +504,12 @@ class SfqdDeterministicConcurrencyTest {
                 () -> scheduler.complete(running));
 
         assertEquals(CompletionResult.COMPLETED, race.second);
-        assertTrue(race.first == CloseFlowResult.BUSY_PERIOD_ACTIVE || race.first == CloseFlowResult.CLOSED);
+        assertTrue(race.first == CloseFlowResult.FAIRNESS_DEBT_ACTIVE || race.first == CloseFlowResult.CLOSED);
         assertRealTimeWitness(
                 race,
-                () -> assertEquals(CloseFlowResult.BUSY_PERIOD_ACTIVE, race.first),
+                () -> assertEquals(CloseFlowResult.FAIRNESS_DEBT_ACTIVE, race.first),
                 () -> assertEquals(CloseFlowResult.CLOSED, race.first));
-        if (race.first == CloseFlowResult.BUSY_PERIOD_ACTIVE) {
+        if (race.first == CloseFlowResult.FAIRNESS_DEBT_ACTIVE) {
             assertEquals(CloseFlowResult.CLOSED, scheduler.closeFlow(inactive));
         } else {
             assertEquals(CloseFlowResult.FLOW_NOT_REGISTERED, scheduler.closeFlow(inactive));
@@ -609,11 +611,11 @@ class SfqdDeterministicConcurrencyTest {
 
         accepted(race.first);
         assertTrue(race.second == CloseFlowResult.FLOW_ACTIVE
-                || race.second == CloseFlowResult.BUSY_PERIOD_ACTIVE);
+                || race.second == CloseFlowResult.FAIRNESS_DEBT_ACTIVE);
         assertRealTimeWitness(
                 race,
                 () -> assertEquals(CloseFlowResult.FLOW_ACTIVE, race.second),
-                () -> assertEquals(CloseFlowResult.BUSY_PERIOD_ACTIVE, race.second));
+                () -> assertEquals(CloseFlowResult.FAIRNESS_DEBT_ACTIVE, race.second));
 
         SuccessfulRebaseFixture serial = successfulRebaseFixture();
         assertEquals(before, captureDeepState(serial.scheduler));

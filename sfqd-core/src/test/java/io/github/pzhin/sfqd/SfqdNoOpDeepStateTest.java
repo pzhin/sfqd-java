@@ -30,7 +30,7 @@ class SfqdNoOpDeepStateTest {
         RegisterFlowResult.Registered last = assertInstanceOf(
                 RegisterFlowResult.Registered.class,
                 exhausted.scheduler.registerFlow("last-public-flow", 13L));
-        assertEquals(CloseFlowResult.BUSY_PERIOD_ACTIVE, exhausted.scheduler.closeFlow(last.flowHandle()));
+        assertEquals(CloseFlowResult.CLOSED, exhausted.scheduler.closeFlow(last.flowHandle()));
         assertNoOp(
                 exhausted.scheduler,
                 RegisterFlowResult.Rejected.FLOW_SEQUENCE_EXHAUSTED,
@@ -63,7 +63,7 @@ class SfqdNoOpDeepStateTest {
                 () -> fixture.scheduler.closeFlow(fixture.flowA));
         assertNoOp(
                 fixture.scheduler,
-                CloseFlowResult.BUSY_PERIOD_ACTIVE,
+                CloseFlowResult.FAIRNESS_DEBT_ACTIVE,
                 () -> fixture.scheduler.closeFlow(fixture.inactiveFlow));
         assertThrowsNoOp(NullPointerException.class, fixture.scheduler,
                 () -> fixture.scheduler.closeFlow(nullReference()));
@@ -206,10 +206,13 @@ class SfqdNoOpDeepStateTest {
         assertEquals(List.of(b2), scheduler.capacityAvailable(1).stream()
                 .map(Dispatch::jobHandle)
                 .toList());
+        JobHandle inactiveDebt = accepted(
+                scheduler.enqueue(inactive, "inactive-debt", new Object(), 11L));
+        assertEquals(CancelResult.CANCELLED, scheduler.cancel(inactiveDebt));
         accepted(scheduler.enqueue(flowC, "c1", new Object(), 1L));
         JobHandle c2 = accepted(scheduler.enqueue(flowC, "c2", new Object(), 2L));
         assertEquals(new SchedulerSnapshot(
-                2, maxFlows, maxLiveJobs, 4, 4, 2, 0, 3, 2, 7L, 3L, 0L, 1L),
+                2, maxFlows, maxLiveJobs, 4, 4, 2, 0, 3, 2, 8L, 3L, 1L, 1L),
                 scheduler.snapshot());
         return new Fixture(scheduler, flowA, inactive, a1, a2, c2, b1);
     }

@@ -8,6 +8,6 @@ public enum CloseFlowResult {
     FLOW_NOT_REGISTERED,
     /** The flow still owns a queued or running job. */
     FLOW_ACTIVE,
-    /** Another flow keeps the current busy period active. */
-    BUSY_PERIOD_ACTIVE
+    /** The inactive flow still has finish-tag debt beyond current virtual time. */
+    FAIRNESS_DEBT_ACTIVE
 }

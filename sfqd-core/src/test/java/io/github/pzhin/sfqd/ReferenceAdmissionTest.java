@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 final class ReferenceAdmissionTest {
     @Test
-    void registerAndCloseFollowIdentityCapacityAndBusyPeriodRules() {
+    void registerAndCloseFollowIdentityCapacityAndFairnessDebtRules() {
         ReferenceScheduler<String, String, Object> model = model(1, 2, 3);
         FlowHandle first = registered(model.registerFlow("first", 1L));
         assertEquals(RegisterFlowResult.Rejected.DUPLICATE_REGISTERED_ID, model.registerFlow("first", 2L));
@@ -19,7 +19,8 @@ final class ReferenceAdmissionTest {
 
         JobHandle job = accepted(model.enqueue(first, "job", new Object(), 1L));
         assertEquals(CloseFlowResult.FLOW_ACTIVE, model.closeFlow(first));
-        assertEquals(CloseFlowResult.BUSY_PERIOD_ACTIVE, model.closeFlow(second));
+        assertEquals(CloseFlowResult.CLOSED, model.closeFlow(second));
+        registered(model.registerFlow("third", 1L));
         assertEquals(1, model.snapshot().activeFlows());
         assertEquals(1, model.snapshot().backloggedFlows());
         assertSame(job, model.queuedHandles().getFirst());

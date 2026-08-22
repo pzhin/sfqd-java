@@ -118,10 +118,12 @@ public final class SfqdScheduler<F, J, P> {
     }
 
     /**
-     * Closes an inactive registration only while the scheduler is globally idle.
+     * Closes an inactive registration once its finish-tag debt is no greater than current virtual time.
      *
      * <p>Success linearizes at removal from both registration indexes. Other results linearize at their decisive
-     * observation and do not mutate state.
+     * observation and do not mutate state. Closing at {@code lastFinish <= virtualTime} is fairness-neutral: retaining
+     * the old registration or registering a new identity would give its next job the same start tag, namely current
+     * virtual time.
      *
      * @param flowHandle opaque registration capability
      * @return close outcome
@@ -138,8 +140,8 @@ public final class SfqdScheduler<F, J, P> {
             if (flow.queuedCount != 0 || flow.runningCount != 0) {
                 return CloseFlowResult.FLOW_ACTIVE;
             }
-            if (!liveById.isEmpty()) {
-                return CloseFlowResult.BUSY_PERIOD_ACTIVE;
+            if (compareTags(flow.lastFinish, virtualTime) > 0) {
+                return CloseFlowResult.FAIRNESS_DEBT_ACTIVE;
             }
             registeredFlows.remove(flowHandle);
             registeredById.remove(flow.flowId);

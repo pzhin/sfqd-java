@@ -81,7 +81,7 @@ final class ReferenceCancellationTest {
     }
 
     @Test
-    void cancellingFlowsLastJobMakesItInactiveButCloseWaitsForGlobalIdle() {
+    void cancellingFlowsLastJobKeepsItsFairnessDebtUntilVirtualTimeCatchesUp() {
         ReferenceScheduler<String, String, Object> model = model(1, 2, 2);
         FlowHandle firstFlow = registered(model.registerFlow("first-flow", 1L));
         FlowHandle secondFlow = registered(model.registerFlow("second-flow", 1L));
@@ -91,7 +91,7 @@ final class ReferenceCancellationTest {
         assertEquals(CancelResult.CANCELLED, model.cancel(firstJob));
         assertEquals(1, model.snapshot().activeFlows());
         assertEquals(1, model.snapshot().backloggedFlows());
-        assertEquals(CloseFlowResult.BUSY_PERIOD_ACTIVE, model.closeFlow(firstFlow));
+        assertEquals(CloseFlowResult.FAIRNESS_DEBT_ACTIVE, model.closeFlow(firstFlow));
         assertEquals(CancelResult.CANCELLED, model.cancel(secondJob));
         assertEquals(0, model.snapshot().activeFlows());
         assertEquals(CloseFlowResult.CLOSED, model.closeFlow(firstFlow));

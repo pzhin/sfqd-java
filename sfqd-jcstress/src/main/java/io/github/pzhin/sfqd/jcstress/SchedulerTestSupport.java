@@ -89,7 +89,7 @@ final class SchedulerTestSupport {
       case CLOSED -> CLOSED;
       case FLOW_ACTIVE -> FLOW_ACTIVE;
       case FLOW_NOT_REGISTERED -> 3;
-      case BUSY_PERIOD_ACTIVE -> 4;
+      case FAIRNESS_DEBT_ACTIVE -> 4;
     };
   }
 

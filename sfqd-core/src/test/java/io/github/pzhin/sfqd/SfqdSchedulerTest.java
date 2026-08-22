@@ -79,7 +79,7 @@ class SfqdSchedulerTest {
     }
 
     @Test
-    void permitsDormantFlowButOnlyClosesItAtGlobalIdle() {
+    void closesUnusedFlowDuringAnotherFlowsBusyPeriod() {
         SfqdScheduler<String, String, String> scheduler =
                 new SfqdScheduler<>(new SchedulerConfig(2, 2, 4));
         FlowHandle first = registered(scheduler.registerFlow("first", 1L));
@@ -87,9 +87,9 @@ class SfqdSchedulerTest {
         JobHandle running = accepted(scheduler.enqueue(first, "running", "p", 1L));
         scheduler.capacityAvailable(1);
 
-        assertEquals(CloseFlowResult.BUSY_PERIOD_ACTIVE, scheduler.closeFlow(dormant));
-        assertEquals(CompletionResult.COMPLETED, scheduler.complete(running));
         assertEquals(CloseFlowResult.CLOSED, scheduler.closeFlow(dormant));
+        assertEquals(CompletionResult.COMPLETED, scheduler.complete(running));
+        assertEquals(CloseFlowResult.FLOW_NOT_REGISTERED, scheduler.closeFlow(dormant));
     }
 
     private static FlowHandle registered(RegisterFlowResult result) {

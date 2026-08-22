@@ -67,8 +67,8 @@ final class ReferenceScheduler<F, J, P> {
         if (flow.queuedCount != 0 || flow.runningCount != 0) {
             return CloseFlowResult.FLOW_ACTIVE;
         }
-        if (!liveById.isEmpty()) {
-            return CloseFlowResult.BUSY_PERIOD_ACTIVE;
+        if (flow.lastFinish.compareTo(virtualTime) > 0) {
+            return CloseFlowResult.FAIRNESS_DEBT_ACTIVE;
         }
         registeredFlows.remove(flowHandle);
         registeredById.remove(flow.flowId);
