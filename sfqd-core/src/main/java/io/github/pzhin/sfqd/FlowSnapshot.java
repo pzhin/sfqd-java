@@ -3,27 +3,31 @@ package io.github.pzhin.sfqd;
 import java.math.BigInteger;
 import java.util.Objects;
 
-/** Immutable observation of one registered flow created only by a scheduler implementation. */
+/**
+ * Immutable observation of one registered flow created only by a scheduler implementation.
+ *
+ * <p>Every cost value is a caller-supplied scheduling cost, not elapsed time or actual resource service.
+ */
 public final class FlowSnapshot {
     private final int queuedJobs;
     private final int runningJobs;
-    private final BigInteger acceptedCost;
-    private final BigInteger dispatchedCost;
-    private final BigInteger cancelledCost;
+    private final BigInteger acceptedSuppliedCost;
+    private final BigInteger dispatchedSuppliedCost;
+    private final BigInteger cancelledSuppliedCost;
     private final BigInteger runningSuppliedCost;
 
     FlowSnapshot(
             int queuedJobs,
             int runningJobs,
-            BigInteger acceptedCost,
-            BigInteger dispatchedCost,
-            BigInteger cancelledCost,
+            BigInteger acceptedSuppliedCost,
+            BigInteger dispatchedSuppliedCost,
+            BigInteger cancelledSuppliedCost,
             BigInteger runningSuppliedCost) {
         this.queuedJobs = queuedJobs;
         this.runningJobs = runningJobs;
-        this.acceptedCost = Objects.requireNonNull(acceptedCost, "acceptedCost");
-        this.dispatchedCost = Objects.requireNonNull(dispatchedCost, "dispatchedCost");
-        this.cancelledCost = Objects.requireNonNull(cancelledCost, "cancelledCost");
+        this.acceptedSuppliedCost = Objects.requireNonNull(acceptedSuppliedCost, "acceptedSuppliedCost");
+        this.dispatchedSuppliedCost = Objects.requireNonNull(dispatchedSuppliedCost, "dispatchedSuppliedCost");
+        this.cancelledSuppliedCost = Objects.requireNonNull(cancelledSuppliedCost, "cancelledSuppliedCost");
         this.runningSuppliedCost = Objects.requireNonNull(runningSuppliedCost, "runningSuppliedCost");
     }
 
@@ -48,28 +52,28 @@ public final class FlowSnapshot {
     /**
      * Returns the exact cumulative supplied cost of successfully accepted jobs for the flow registration.
      *
-     * @return cumulative accepted cost units
+     * @return cumulative accepted supplied-cost units
      */
-    public BigInteger acceptedCost() {
-        return acceptedCost;
+    public BigInteger acceptedSuppliedCost() {
+        return acceptedSuppliedCost;
     }
 
     /**
      * Returns the exact cumulative supplied cost of jobs dispatched for the flow registration.
      *
-     * @return cumulative dispatched cost units
+     * @return cumulative dispatched supplied-cost units
      */
-    public BigInteger dispatchedCost() {
-        return dispatchedCost;
+    public BigInteger dispatchedSuppliedCost() {
+        return dispatchedSuppliedCost;
     }
 
     /**
      * Returns the exact cumulative supplied cost of successfully cancelled jobs for the flow registration.
      *
-     * @return cumulative cancelled cost units
+     * @return cumulative cancelled supplied-cost units
      */
-    public BigInteger cancelledCost() {
-        return cancelledCost;
+    public BigInteger cancelledSuppliedCost() {
+        return cancelledSuppliedCost;
     }
 
     /**
@@ -91,19 +95,19 @@ public final class FlowSnapshot {
      * @return cumulative completed supplied cost units
      */
     public BigInteger completedSuppliedCost() {
-        return dispatchedCost.subtract(runningSuppliedCost);
+        return dispatchedSuppliedCost.subtract(runningSuppliedCost);
     }
 
     /**
-     * Returns the exact total cost of jobs currently queued for the flow.
+     * Returns the exact supplied cost of jobs currently queued for the flow.
      *
      * <p>This is derived from cumulative lifecycle costs as accepted minus dispatched minus cancelled. Completion
      * does not affect it because dispatched cost includes both running and completed jobs.
      *
-     * @return current queued cost units
+     * @return current queued supplied-cost units
      */
-    public BigInteger queuedCost() {
-        return acceptedCost.subtract(dispatchedCost).subtract(cancelledCost);
+    public BigInteger queuedSuppliedCost() {
+        return acceptedSuppliedCost.subtract(dispatchedSuppliedCost).subtract(cancelledSuppliedCost);
     }
 
     @Override
@@ -116,25 +120,26 @@ public final class FlowSnapshot {
         }
         return queuedJobs == snapshot.queuedJobs
                 && runningJobs == snapshot.runningJobs
-                && acceptedCost.equals(snapshot.acceptedCost)
-                && dispatchedCost.equals(snapshot.dispatchedCost)
-                && cancelledCost.equals(snapshot.cancelledCost)
+                && acceptedSuppliedCost.equals(snapshot.acceptedSuppliedCost)
+                && dispatchedSuppliedCost.equals(snapshot.dispatchedSuppliedCost)
+                && cancelledSuppliedCost.equals(snapshot.cancelledSuppliedCost)
                 && runningSuppliedCost.equals(snapshot.runningSuppliedCost);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                queuedJobs, runningJobs, acceptedCost, dispatchedCost, cancelledCost, runningSuppliedCost);
+                queuedJobs, runningJobs, acceptedSuppliedCost, dispatchedSuppliedCost,
+                cancelledSuppliedCost, runningSuppliedCost);
     }
 
     @Override
     public String toString() {
         return "FlowSnapshot[queuedJobs=" + queuedJobs
                 + ", runningJobs=" + runningJobs
-                + ", acceptedCost=" + acceptedCost
-                + ", dispatchedCost=" + dispatchedCost
-                + ", cancelledCost=" + cancelledCost
+                + ", acceptedSuppliedCost=" + acceptedSuppliedCost
+                + ", dispatchedSuppliedCost=" + dispatchedSuppliedCost
+                + ", cancelledSuppliedCost=" + cancelledSuppliedCost
                 + ", runningSuppliedCost=" + runningSuppliedCost + ']';
     }
 }
