@@ -78,10 +78,10 @@ if is_javadoc_failure "$BYPASS_LOG"; then
 fi
 
 if ! grep -Fq \
-    'exec-maven-plugin:3.6.3:exec (verify-published-core-artifacts)' \
+    'exec-maven-plugin:3.6.3:java (verify-published-core-artifacts)' \
     "$BYPASS_LOG" ||
     ! grep -Fq \
-      'ERROR: binary JAR public type surface differs from the specified API' \
+      'binary JAR public type surface differs from the specified API' \
       "$BYPASS_LOG"; then
   echo "ERROR: disabled-gate mutation failed for an unexpected reason" >&2
   sed -n '1,240p' "$BYPASS_LOG" >&2

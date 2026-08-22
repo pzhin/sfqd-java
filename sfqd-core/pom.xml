@@ -172,34 +172,18 @@
         <artifactId>exec-maven-plugin</artifactId>
         <executions>
           <execution>
-            <id>include-license-in-attached-artifacts</id>
-            <phase>package</phase>
-            <goals><goal>exec</goal></goals>
-            <configuration>
-              <executable>bash</executable>
-              <arguments>
-                <argument>${maven.multiModuleProjectDirectory}/tools/include-license-in-attached-artifacts.sh</argument>
-                <argument>${maven.multiModuleProjectDirectory}/LICENSE</argument>
-                <argument>${project.build.directory}</argument>
-                <argument>${project.build.finalName}</argument>
-                <argument>${java.home}/bin/jar</argument>
-                <argument>${project.build.outputTimestamp}</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
             <id>verify-published-core-artifacts</id>
             <phase>package</phase>
-            <goals><goal>exec</goal></goals>
+            <goals><goal>java</goal></goals>
             <configuration>
-              <executable>bash</executable>
+              <mainClass>io.github.pzhin.sfqd.build.CoreArtifactVerifier</mainClass>
+              <classpathScope>test</classpathScope>
               <arguments>
-                <argument>${maven.multiModuleProjectDirectory}/tools/verify-core-artifacts.sh</argument>
-                <argument>verify</argument>
                 <argument>${project.basedir}</argument>
                 <argument>${project.build.directory}</argument>
-                <argument>${java.home}/bin/jar</argument>
-                <argument>${java.home}/bin/javap</argument>
+                <argument>${maven.multiModuleProjectDirectory}/LICENSE</argument>
+                <argument>${project.build.outputTimestamp}</argument>
+                <argument>${maven.compiler.release}</argument>
               </arguments>
             </configuration>
           </execution>

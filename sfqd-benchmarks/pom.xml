@@ -60,12 +60,12 @@
           <execution>
             <id>verify-executable-benchmark-discovery</id>
             <phase>verify</phase>
-            <goals><goal>exec</goal></goals>
+            <goals><goal>java</goal></goals>
             <configuration>
-              <executable>bash</executable>
+              <mainClass>io.github.pzhin.sfqd.benchmarks.BenchmarkDiscoveryVerifier</mainClass>
+              <classpathScope>runtime</classpathScope>
+              <skip>${sfqd.harness.execution.skip}</skip>
               <arguments>
-                <argument>${maven.multiModuleProjectDirectory}/tools/verify-benchmark-discovery.sh</argument>
-                <argument>${java.home}/bin/java</argument>
                 <argument>${project.build.directory}/sfqd-benchmarks.jar</argument>
               </arguments>
             </configuration>
@@ -77,6 +77,7 @@
             <configuration>
               <mainClass>io.github.pzhin.sfqd.benchmarks.IdleResetWorkloadSmoke</mainClass>
               <classpathScope>runtime</classpathScope>
+              <skip>${sfqd.harness.execution.skip}</skip>
             </configuration>
           </execution>
           <execution>
@@ -86,6 +87,7 @@
             <configuration>
               <mainClass>io.github.pzhin.sfqd.benchmarks.PerformanceScaleWorkloadSmoke</mainClass>
               <classpathScope>runtime</classpathScope>
+              <skip>${sfqd.harness.execution.skip}</skip>
             </configuration>
           </execution>
         </executions>

@@ -86,6 +86,7 @@
             <goals><goal>exec</goal></goals>
             <configuration>
               <executable>${java.home}/bin/java</executable>
+              <skip>${sfqd.harness.execution.skip}</skip>
               <arguments>
                 <argument>-jar</argument>
                 <argument>${project.build.directory}/sfqd-jcstress.jar</argument>
