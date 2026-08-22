@@ -26,10 +26,14 @@ final class FlowSnapshotTest {
         assertEquals(BigInteger.ZERO, queued.dispatchedCost());
         assertEquals(BigInteger.ZERO, queued.cancelledCost());
         assertEquals(twiceMaximum, queued.queuedCost());
+        assertEquals(BigInteger.ZERO, queued.runningSuppliedCost());
+        assertEquals(BigInteger.ZERO, queued.completedSuppliedCost());
 
         scheduler.dispatchUpTo(1);
         assertEquals(
-                new FlowSnapshot(1, 1, twiceMaximum, BigInteger.valueOf(Long.MAX_VALUE), BigInteger.ZERO),
+                new FlowSnapshot(
+                        1, 1, twiceMaximum, BigInteger.valueOf(Long.MAX_VALUE), BigInteger.ZERO,
+                        BigInteger.valueOf(Long.MAX_VALUE)),
                 scheduler.snapshot(flow).orElseThrow());
 
         assertEquals(CancelResult.CANCELLED, scheduler.cancel(cancelled));
@@ -39,11 +43,40 @@ final class FlowSnapshotTest {
         assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.dispatchedCost());
         assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.cancelledCost());
         assertEquals(BigInteger.ZERO, afterCancellation.queuedCost());
+        assertEquals(BigInteger.valueOf(Long.MAX_VALUE), afterCancellation.runningSuppliedCost());
+        assertEquals(BigInteger.ZERO, afterCancellation.completedSuppliedCost());
 
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(running));
-        assertEquals(0, scheduler.snapshot(flow).orElseThrow().runningJobs());
+        FlowSnapshot completed = scheduler.snapshot(flow).orElseThrow();
+        assertEquals(0, completed.runningJobs());
+        assertEquals(BigInteger.ZERO, completed.runningSuppliedCost());
+        assertEquals(BigInteger.valueOf(Long.MAX_VALUE), completed.completedSuppliedCost());
         assertEquals(CloseFlowResult.CLOSED, scheduler.closeFlow(flow));
         assertFalse(scheduler.snapshot(flow).isPresent());
+    }
+
+    @Test
+    void distinguishesRunningJobCountsFromTheirSuppliedCosts() {
+        SfqdScheduler<String, String, String> scheduler =
+                new SfqdScheduler<>(new SchedulerConfig(2, 1, 2));
+        FlowHandle flow = registered(scheduler.registerFlow("flow", 1L));
+        JobHandle cheap = accepted(scheduler.enqueue(flow, "cheap", "payload", 1L));
+        JobHandle expensive = accepted(scheduler.enqueue(flow, "expensive", "payload", 1_000_000L));
+
+        scheduler.dispatchUpTo(2);
+        FlowSnapshot bothRunning = scheduler.snapshot(flow).orElseThrow();
+        assertEquals(2, bothRunning.runningJobs());
+        assertEquals(BigInteger.valueOf(1_000_001L), bothRunning.runningSuppliedCost());
+        assertEquals(BigInteger.ZERO, bothRunning.completedSuppliedCost());
+
+        assertEquals(CompletionResult.COMPLETED, scheduler.complete(cheap));
+        FlowSnapshot expensiveRunning = scheduler.snapshot(flow).orElseThrow();
+        assertEquals(1, expensiveRunning.runningJobs());
+        assertEquals(BigInteger.valueOf(1_000_000L), expensiveRunning.runningSuppliedCost());
+        assertEquals(BigInteger.ONE, expensiveRunning.completedSuppliedCost());
+
+        assertEquals(CompletionResult.COMPLETED, scheduler.complete(expensive));
+        assertEquals(BigInteger.ZERO, scheduler.snapshot(flow).orElseThrow().runningSuppliedCost());
     }
 
     @Test
@@ -69,7 +102,8 @@ final class FlowSnapshotTest {
                 queuedJobs, runningJobs,
                 BigInteger.valueOf(acceptedCost),
                 BigInteger.valueOf(dispatchedCost),
-                BigInteger.valueOf(cancelledCost));
+                BigInteger.valueOf(cancelledCost),
+                BigInteger.ZERO);
     }
 
     private static FlowHandle registered(RegisterFlowResult result) {

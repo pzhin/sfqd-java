@@ -268,10 +268,13 @@ expose internal queues or mutable scheduler state.
 
 `snapshot(flowHandle)` returns an `Optional<FlowSnapshot>` for the exact active
 registration. It reports current queued/running counts and exact cumulative
-accepted, dispatched, and cancelled cost units. Current queued cost is also
+accepted, dispatched, and cancelled supplied-cost units. Current queued cost is
 available as `acceptedCost - dispatchedCost - cancelledCost` through
-`queuedCost()`. Cost totals use `BigInteger`, so valid `long` costs do not
-overflow observability counters.
+`queuedCost()`. `runningSuppliedCost()` reports the committed in-flight
+supplied cost directly, while `completedSuppliedCost()` derives the cumulative
+completed supplied cost as dispatched minus running. These are caller-supplied
+service estimates, not actual execution time. Cost values use `BigInteger`, so
+valid `long` costs do not overflow observability counters.
 
 The per-flow snapshot is captured atomically with lifecycle transitions. A
 foreign, stale, or closed handle returns an empty optional. The library does

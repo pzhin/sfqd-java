@@ -593,8 +593,33 @@ class SfqdDeterministicConcurrencyTest {
                 () -> assertEquals(after, race.second),
                 () -> assertEquals(before, race.second));
         assertEquals(new FlowSnapshot(
-                0, 2, BigInteger.valueOf(8L), BigInteger.valueOf(8L), BigInteger.ZERO), after);
+                0, 2, BigInteger.valueOf(8L), BigInteger.valueOf(8L), BigInteger.ZERO,
+                BigInteger.valueOf(8L)), after);
         completeAll(scheduler, race.first);
+        assertConservation(scheduler.snapshot());
+    }
+
+    @Test
+    void flowSnapshotRacingCompletionSeesWholeRunningSuppliedCostTransition() {
+        SfqdScheduler<String, String, String> scheduler = scheduler(1, 1, 1);
+        FlowHandle flow = registered(scheduler.registerFlow("flow", 1L));
+        JobHandle running = accepted(scheduler.enqueue(flow, "job", "payload", 8L));
+        scheduler.dispatchUpTo(1);
+        FlowSnapshot before = scheduler.snapshot(flow).orElseThrow();
+
+        RaceResult<CompletionResult, FlowSnapshot> race = race(
+                () -> scheduler.complete(running),
+                () -> scheduler.snapshot(flow).orElseThrow());
+
+        assertEquals(CompletionResult.COMPLETED, race.first);
+        FlowSnapshot after = scheduler.snapshot(flow).orElseThrow();
+        assertTrue(race.second.equals(before) || race.second.equals(after));
+        assertRealTimeWitness(
+                race,
+                () -> assertEquals(after, race.second),
+                () -> assertEquals(before, race.second));
+        assertEquals(BigInteger.ZERO, after.runningSuppliedCost());
+        assertEquals(BigInteger.valueOf(8L), after.completedSuppliedCost());
         assertConservation(scheduler.snapshot());
     }
 
