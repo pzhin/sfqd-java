@@ -131,7 +131,7 @@ if jar tf "${core_binary_jars[0]}" | grep -Eq \
   fail "deployed core binary contains reference-model or harness classes"
 fi
 
-for forbidden_artifact in sfqd-coverage sfqd-benchmarks sfqd-jcstress; do
+for forbidden_artifact in sfqd-coverage sfqd-examples sfqd-benchmarks sfqd-jcstress; do
   if [[ -e "${GROUP_DIRECTORY}/${forbidden_artifact}" ]]; then
     fail "temporary repository unexpectedly contains ${forbidden_artifact}"
   fi

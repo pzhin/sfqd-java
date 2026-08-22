@@ -129,6 +129,24 @@ capacity to dispatch and runs after every accepted enqueue, every completion,
 and every external capacity signal. See the
 [production executor pump example](docs/EXECUTOR_INTEGRATION.md).
 
+## Bounded resource-pool integration
+
+For a production-oriented lifecycle example, see the compiled and tested
+[`sfqd-examples` bounded resource-pool adapter](sfqd-examples/README.md). It
+keeps cost computation and resource ownership in the application while making
+these integration rules explicit:
+
+- configure `D` to equal the pool's maximum concurrently issued resources;
+- report only capacity that is actually free;
+- treat every returned `Dispatch` as irrevocably running;
+- call `complete()` after every accepted task terminates and after synchronous
+  submission failure;
+- offer each released resource to the scheduler again;
+- leave any unused reported resources free in the pool.
+
+The example pulls one job at a time. This avoids pre-dispatching a whole batch
+whose later jobs could be stranded if an earlier pool submission throws.
+
 ## Public operations
 
 ### Register a flow
@@ -307,7 +325,7 @@ their numeric budget. If the result still cannot fit, it returns
 `NUMERIC_LIMIT` without changing scheduler state.
 
 `1_000_000` is a representation and validation limit for `issueDepth`, not a
-practically tested scale. One `capacityAvailable(k)` call is atomic, holds the
+practically tested scale. One `dispatchUpTo(k)` call is atomic, holds the
 scheduler's internal serialization boundary for the whole selection, and may
 create up to `k` `Dispatch` objects. The repository's measurement matrix stops
 at depth `1_024`; even within that matrix, no performance claim exists until a
@@ -350,7 +368,8 @@ not retained as tombstones.
 java -jar sfqd-benchmarks/target/sfqd-benchmarks.jar -l
 ```
 
-The JMH and jcstress modules are verification tools, not runtime dependencies.
+The examples, JMH, and jcstress modules are verification tools, not runtime
+dependencies.
 CI packages and discovers the harness, validates representative fixture states,
 and runs one 100 ms JMH wiring check. None of those steps is a performance
 measurement. See the workload guide for the decision-bearing scale matrix and
@@ -360,6 +379,7 @@ measurement protocol.
 
 - [Practical and normative operation contract](docs/FORMAL_SPEC.md)
 - [Production executor pump integration](docs/EXECUTOR_INTEGRATION.md)
+- [Bounded resource-pool integration](sfqd-examples/README.md)
 - [Theory in plain language and full papers](docs/THEORY.md)
 - [Build, CI, artifact, and publication checks](docs/TOOLING.md)
 - [Benchmark workload guide](sfqd-benchmarks/README.md)
