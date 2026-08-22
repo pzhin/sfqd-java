@@ -221,7 +221,7 @@ public class PerformanceScaleBenchmark {
     }
 
     /**
-     * Measures one atomic {@code capacityAvailable} call at the selected scale and batch limit.
+     * Measures one atomic {@code dispatchUpTo} call at the selected scale and batch limit.
      *
      * @param state exact scale fixture
      * @return immutable dispatch batch, whose cardinality is validated during teardown
@@ -274,7 +274,7 @@ public class PerformanceScaleBenchmark {
         }
 
         List<Dispatch<FlowKey, JobKey, Payload>> dispatch(int batchSize) {
-            List<Dispatch<FlowKey, JobKey, Payload>> result = scheduler.capacityAvailable(batchSize);
+            List<Dispatch<FlowKey, JobKey, Payload>> result = scheduler.dispatchUpTo(batchSize);
             if (result.size() != batchSize) {
                 throw new IllegalStateException("expected a full dispatch batch of " + batchSize);
             }
