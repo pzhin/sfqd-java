@@ -37,7 +37,7 @@ class SfqdRetentionStructureTest {
         Object secondQueuedNode = mapField(scheduler, "queued").get(second);
         Object firstStartTag = field(firstQueuedNode, "start").get(firstQueuedNode);
 
-        Dispatch<Object, Object, Object> dispatch = scheduler.capacityAvailable(1).getFirst();
+        Dispatch<Object, Object, Object> dispatch = scheduler.dispatchUpTo(1).getFirst();
 
         assertSame(firstPayload, dispatch.payload());
         assertFalse(reachableFrom(scheduler, firstPayload));

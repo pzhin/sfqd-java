@@ -50,9 +50,9 @@ class SfqdDifferentialProperties {
         reference.enqueue(referenceB, "b1", b1, 1L);
         production.enqueue(productionB, "b1", b1, 1L);
 
-        assertDispatchIds(reference.capacityAvailable(1), production.capacityAvailable(1), List.of("a1"));
+        assertDispatchIds(reference.dispatchUpTo(1), production.dispatchUpTo(1), List.of("a1"));
         assertEquals(reference.complete(referenceA1), production.complete(productionA1));
-        assertDispatchIds(reference.capacityAvailable(1), production.capacityAvailable(1), List.of("b1"));
+        assertDispatchIds(reference.dispatchUpTo(1), production.dispatchUpTo(1), List.of("b1"));
         assertEquals(reference.snapshot(), production.snapshot());
     }
 
@@ -143,8 +143,8 @@ class SfqdDifferentialProperties {
 
         private void dispatch(int selector) {
             int capacity = selector % (config.depth() + 1);
-            List<Dispatch<String, String, Payload>> expected = reference.capacityAvailable(capacity);
-            List<Dispatch<String, String, Payload>> actual = production.capacityAvailable(capacity);
+            List<Dispatch<String, String, Payload>> expected = reference.dispatchUpTo(capacity);
+            List<Dispatch<String, String, Payload>> actual = production.dispatchUpTo(capacity);
             assertEquals(expected.size(), actual.size());
             for (int index = 0; index < expected.size(); index++) {
                 Dispatch<String, String, Payload> expectedJob = expected.get(index);

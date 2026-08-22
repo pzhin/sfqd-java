@@ -16,7 +16,7 @@ class SfqdHeadIndexTest {
         scheduler.enqueue(flowB, "b1", "p", 1L);
 
         assertEquals(CancelResult.CANCELLED, scheduler.cancel(a1));
-        assertEquals(List.of("b1", "a2"), ids(scheduler.capacityAvailable(3)));
+        assertEquals(List.of("b1", "a2"), ids(scheduler.dispatchUpTo(3)));
     }
 
     @Test
@@ -28,8 +28,8 @@ class SfqdHeadIndexTest {
         scheduler.enqueue(flowA, "a2", "p", 1L);
         scheduler.enqueue(flowB, "b1", "p", 1L);
 
-        assertEquals(List.of("a1"), ids(scheduler.capacityAvailable(1)));
-        assertEquals(List.of("b1", "a2"), ids(scheduler.capacityAvailable(2)));
+        assertEquals(List.of("a1"), ids(scheduler.dispatchUpTo(1)));
+        assertEquals(List.of("b1", "a2"), ids(scheduler.dispatchUpTo(2)));
     }
 
     @Test
@@ -44,7 +44,7 @@ class SfqdHeadIndexTest {
 
         assertEquals(CancelResult.CANCELLED, scheduler.cancel(middle));
         assertEquals(CancelResult.CANCELLED, scheduler.cancel(tail));
-        assertEquals(List.of("a1", "b1"), ids(scheduler.capacityAvailable(3)));
+        assertEquals(List.of("a1", "b1"), ids(scheduler.dispatchUpTo(3)));
     }
 
     @Test
@@ -54,12 +54,12 @@ class SfqdHeadIndexTest {
         FlowHandle chargedFlow = registered(busy.registerFlow("charged", 1L));
         FlowHandle competingFlow = registered(busy.registerFlow("competing", 1L));
         busy.enqueue(anchorFlow, "anchor", "p", 1L);
-        busy.capacityAvailable(1);
+        busy.dispatchUpTo(1);
         JobHandle cancelled = accepted(busy.enqueue(chargedFlow, "cancelled", "p", 10L));
         assertEquals(CancelResult.CANCELLED, busy.cancel(cancelled));
         busy.enqueue(chargedFlow, "charged", "p", 1L);
         busy.enqueue(competingFlow, "competing", "p", 1L);
-        assertEquals(List.of("competing"), ids(busy.capacityAvailable(1)));
+        assertEquals(List.of("competing"), ids(busy.dispatchUpTo(1)));
 
         SfqdScheduler<String, String, String> idle = scheduler();
         FlowHandle resetFlow = registered(idle.registerFlow("reset", 1L));
@@ -68,7 +68,7 @@ class SfqdHeadIndexTest {
         assertEquals(CancelResult.CANCELLED, idle.cancel(reset));
         idle.enqueue(resetFlow, "after-reset", "p", 1L);
         idle.enqueue(otherFlow, "other", "p", 1L);
-        assertEquals(List.of("after-reset", "other"), ids(idle.capacityAvailable(2)));
+        assertEquals(List.of("after-reset", "other"), ids(idle.dispatchUpTo(2)));
     }
 
     private static SfqdScheduler<String, String, String> scheduler() {

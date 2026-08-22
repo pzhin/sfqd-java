@@ -180,11 +180,11 @@ class SfqdNoOpDeepStateTest {
             throws ReflectiveOperationException {
         Fixture fixture = fixture(5, 8);
 
-        assertNoOp(fixture.scheduler, List.of(), () -> fixture.scheduler.capacityAvailable(0));
+        assertNoOp(fixture.scheduler, List.of(), () -> fixture.scheduler.dispatchUpTo(0));
         assertThrowsNoOp(IllegalArgumentException.class, fixture.scheduler,
-                () -> fixture.scheduler.capacityAvailable(-1));
+                () -> fixture.scheduler.dispatchUpTo(-1));
         assertThrowsNoOp(IllegalArgumentException.class, fixture.scheduler,
-                () -> fixture.scheduler.capacityAvailable(3));
+                () -> fixture.scheduler.dispatchUpTo(3));
     }
 
     private static Fixture fixture(int maxFlows, int maxLiveJobs) {
@@ -199,11 +199,11 @@ class SfqdNoOpDeepStateTest {
         accepted(scheduler.enqueue(flowA, "a3", new Object(), 5L));
         JobHandle b1 = accepted(scheduler.enqueue(flowB, "b1", new Object(), 1L));
         JobHandle b2 = accepted(scheduler.enqueue(flowB, "b2", new Object(), 7L));
-        assertEquals(List.of(a1, b1), scheduler.capacityAvailable(2).stream()
+        assertEquals(List.of(a1, b1), scheduler.dispatchUpTo(2).stream()
                 .map(Dispatch::jobHandle)
                 .toList());
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(b1));
-        assertEquals(List.of(b2), scheduler.capacityAvailable(1).stream()
+        assertEquals(List.of(b2), scheduler.dispatchUpTo(1).stream()
                 .map(Dispatch::jobHandle)
                 .toList());
         JobHandle inactiveDebt = accepted(

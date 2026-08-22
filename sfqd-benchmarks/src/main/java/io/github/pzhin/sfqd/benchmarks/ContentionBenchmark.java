@@ -106,7 +106,7 @@ public class ContentionBenchmark {
         }
 
         private int consumer(ThreadParams threadParams, WorkCounters counters, boolean recordCounters) {
-            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = fixture().scheduler().capacityAvailable(depth);
+            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = fixture().scheduler().dispatchUpTo(depth);
             if (dispatches.isEmpty()) {
                 if (recordCounters) {
                     counters.recordEmptyAttempt();

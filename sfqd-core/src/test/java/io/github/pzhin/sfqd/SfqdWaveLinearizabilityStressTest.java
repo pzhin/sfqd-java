@@ -490,7 +490,7 @@ class SfqdWaveLinearizabilityStressTest {
                 case CLOSE -> scheduler.closeFlow(flow);
                 case ENQUEUE -> scheduler.enqueue(flow, identifier, payload, number);
                 case CANCEL -> scheduler.cancel(job);
-                case DISPATCH -> scheduler.capacityAvailable((int) number);
+                case DISPATCH -> scheduler.dispatchUpTo((int) number);
                 case COMPLETE -> scheduler.complete(job);
                 case SNAPSHOT -> scheduler.snapshot();
             });
@@ -620,7 +620,7 @@ class SfqdWaveLinearizabilityStressTest {
 
         private boolean dispatch(Operation operation, Object actualObject) {
             List<Dispatch<String, String, Payload>> expected =
-                    reference.capacityAvailable((int) operation.number());
+                    reference.dispatchUpTo((int) operation.number());
             if (!(actualObject instanceof List<?> actual) || expected.size() != actual.size()) {
                 return false;
             }

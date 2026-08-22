@@ -36,7 +36,7 @@ public class AtomicBatchDispatchStress {
    */
   @Actor
   public void first(IIIII_Result result) {
-    result.r1 = SchedulerTestSupport.dispatchCode(scheduler.capacityAvailable(2));
+    result.r1 = SchedulerTestSupport.dispatchCode(scheduler.dispatchUpTo(2));
   }
 
   /**
@@ -46,7 +46,7 @@ public class AtomicBatchDispatchStress {
    */
   @Actor
   public void second(IIIII_Result result) {
-    result.r2 = SchedulerTestSupport.dispatchCode(scheduler.capacityAvailable(2));
+    result.r2 = SchedulerTestSupport.dispatchCode(scheduler.dispatchUpTo(2));
   }
 
   /**

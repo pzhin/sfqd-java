@@ -19,19 +19,19 @@ final class ReferenceDispatchTest {
         JobHandle second = accepted(model.enqueue(firstFlow, "second", new Object(), 1L));
         JobHandle third = accepted(model.enqueue(secondFlow, "third", new Object(), 2L));
 
-        Dispatch<String, String, Object> firstDispatch = model.capacityAvailable(1).getFirst();
+        Dispatch<String, String, Object> firstDispatch = model.dispatchUpTo(1).getFirst();
         assertSame(first, firstDispatch.jobHandle());
         assertEquals("first", firstDispatch.jobId());
         assertEquals("first-flow", firstDispatch.flowId());
         assertSame(firstPayload, firstDispatch.payload());
         assertEquals(1L, firstDispatch.cost());
         assertEquals(ExactRational.ZERO, model.virtualTime());
-        assertEquals(List.of(), model.capacityAvailable(1));
+        assertEquals(List.of(), model.dispatchUpTo(1));
         assertEquals(CompletionResult.NOT_DISPATCHED, model.complete(second));
         assertEquals(CompletionResult.COMPLETED, model.complete(first));
-        assertSame(third, model.capacityAvailable(1).getFirst().jobHandle());
+        assertSame(third, model.dispatchUpTo(1).getFirst().jobHandle());
         assertEquals(CompletionResult.COMPLETED, model.complete(third));
-        assertSame(second, model.capacityAvailable(1).getFirst().jobHandle());
+        assertSame(second, model.dispatchUpTo(1).getFirst().jobHandle());
         assertEquals(ExactRational.ONE, model.virtualTime());
     }
 
@@ -44,7 +44,7 @@ final class ReferenceDispatchTest {
         JobHandle laterStart = accepted(model.enqueue(firstFlow, "later-start", new Object(), 1L));
         JobHandle tiedStart = accepted(model.enqueue(secondFlow, "tied-start", new Object(), 2L));
 
-        List<Dispatch<String, String, Object>> batch = model.capacityAvailable(3);
+        List<Dispatch<String, String, Object>> batch = model.dispatchUpTo(3);
         assertEquals(List.of(first, tiedStart, laterStart), batch.stream().map(Dispatch::jobHandle).toList());
         assertEquals(List.of("first", "tied-start", "later-start"),
                 batch.stream().map(Dispatch::jobId).toList());
@@ -67,14 +67,14 @@ final class ReferenceDispatchTest {
         JobHandle third = accepted(model.enqueue(flow, "third", new Object(), 1L));
 
         assertEquals(List.of(first, second),
-                model.capacityAvailable(2).stream().map(Dispatch::jobHandle).toList());
+                model.dispatchUpTo(2).stream().map(Dispatch::jobHandle).toList());
         assertEquals(2, model.snapshot().freeSlots());
         assertEquals(ExactRational.ONE, model.virtualTime());
         assertEquals(CompletionResult.COMPLETED, model.complete(second));
         assertEquals(ExactRational.ONE, model.virtualTime());
         assertEquals(CompletionResult.NOT_LIVE, model.complete(second));
         assertEquals(1, model.snapshot().runningJobs());
-        assertSame(third, model.capacityAvailable(1).getFirst().jobHandle());
+        assertSame(third, model.dispatchUpTo(1).getFirst().jobHandle());
     }
 
     @Test
@@ -86,14 +86,14 @@ final class ReferenceDispatchTest {
         JobHandle third = accepted(model.enqueue(flow, "third", new Object(), 1L));
         JobHandle fourth = accepted(model.enqueue(flow, "fourth", new Object(), 1L));
 
-        List<Dispatch<String, String, Object>> batch = model.capacityAvailable(3);
+        List<Dispatch<String, String, Object>> batch = model.dispatchUpTo(3);
         assertEquals(List.of(first, second, third), batch.stream().map(Dispatch::jobHandle).toList());
         assertThrows(UnsupportedOperationException.class, () -> batch.clear());
         assertEquals(3, model.snapshot().runningJobs());
         assertEquals(0, model.snapshot().freeSlots());
-        assertEquals(List.of(), model.capacityAvailable(3));
+        assertEquals(List.of(), model.dispatchUpTo(3));
         assertEquals(CompletionResult.COMPLETED, model.complete(second));
-        assertSame(fourth, model.capacityAvailable(3).getFirst().jobHandle());
+        assertSame(fourth, model.dispatchUpTo(3).getFirst().jobHandle());
         assertEquals(3, model.snapshot().runningJobs());
         assertEquals(4L, model.snapshot().dispatchedTotal());
     }
@@ -104,9 +104,9 @@ final class ReferenceDispatchTest {
         FlowHandle flow = registered(model.registerFlow("flow", 1L));
         JobHandle queued = accepted(model.enqueue(flow, "job", new Object(), 1L));
 
-        assertThrows(IllegalArgumentException.class, () -> model.capacityAvailable(-1));
-        assertThrows(IllegalArgumentException.class, () -> model.capacityAvailable(3));
-        assertEquals(List.of(), model.capacityAvailable(0));
+        assertThrows(IllegalArgumentException.class, () -> model.dispatchUpTo(-1));
+        assertThrows(IllegalArgumentException.class, () -> model.dispatchUpTo(3));
+        assertEquals(List.of(), model.dispatchUpTo(0));
         assertEquals(CompletionResult.NOT_DISPATCHED, model.complete(queued));
         JobHandle unknown = new JobHandle(new OwnerToken(), 1L);
         assertEquals(CompletionResult.NOT_LIVE, model.complete(unknown));

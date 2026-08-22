@@ -22,7 +22,7 @@ class SfqdSchedulerTest {
         JobHandle lightTwo = accepted(scheduler.enqueue(light, "l2", new Object(), 4L));
         JobHandle heavyOne = accepted(scheduler.enqueue(heavy, "h1", heavyPayload, 4L));
 
-        List<Dispatch<String, String, Object>> first = scheduler.capacityAvailable(2);
+        List<Dispatch<String, String, Object>> first = scheduler.dispatchUpTo(2);
 
         assertEquals(List.of("l1", "h1"), first.stream().map(Dispatch::jobId).toList());
         assertSame(lightPayload, first.get(0).payload());
@@ -63,9 +63,9 @@ class SfqdSchedulerTest {
         assertEquals(EnqueueResult.Rejected.LIVE_LIMIT,
                 first.enqueue(flow, "other", "payload", 1L));
         assertEquals(CloseFlowResult.FLOW_ACTIVE, first.closeFlow(flow));
-        assertTrue(first.capacityAvailable(0).isEmpty());
-        assertEquals(1, first.capacityAvailable(1).size());
-        assertTrue(first.capacityAvailable(1).isEmpty());
+        assertTrue(first.dispatchUpTo(0).isEmpty());
+        assertEquals(1, first.dispatchUpTo(1).size());
+        assertTrue(first.dispatchUpTo(1).isEmpty());
         assertEquals(CancelResult.NOT_LIVE, first.cancel(accepted(second.enqueue(foreignFlow,
                 "foreign", "payload", 1L))));
         assertEquals(CompletionResult.COMPLETED, first.complete(job));
@@ -74,8 +74,8 @@ class SfqdSchedulerTest {
 
         assertThrows(IllegalArgumentException.class, () -> first.registerFlow("bad", 0L));
         assertThrows(IllegalArgumentException.class, () -> first.enqueue(flow, "x", "x", 0L));
-        assertThrows(IllegalArgumentException.class, () -> first.capacityAvailable(-1));
-        assertThrows(IllegalArgumentException.class, () -> first.capacityAvailable(2));
+        assertThrows(IllegalArgumentException.class, () -> first.dispatchUpTo(-1));
+        assertThrows(IllegalArgumentException.class, () -> first.dispatchUpTo(2));
     }
 
     @Test
@@ -85,7 +85,7 @@ class SfqdSchedulerTest {
         FlowHandle first = registered(scheduler.registerFlow("first", 1L));
         FlowHandle dormant = registered(scheduler.registerFlow("dormant", 1L));
         JobHandle running = accepted(scheduler.enqueue(first, "running", "p", 1L));
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
 
         assertEquals(CloseFlowResult.CLOSED, scheduler.closeFlow(dormant));
         assertEquals(CompletionResult.COMPLETED, scheduler.complete(running));

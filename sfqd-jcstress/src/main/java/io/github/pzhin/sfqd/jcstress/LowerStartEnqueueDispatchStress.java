@@ -32,7 +32,7 @@ public class LowerStartEnqueueDispatchStress {
     lowerStartFlow = SchedulerTestSupport.register(scheduler, "low");
     SchedulerTestSupport.enqueue(scheduler, highStartFlow, 1, 10L);
     SchedulerTestSupport.enqueue(scheduler, highStartFlow, 2, 1L);
-    JobHandle running = scheduler.capacityAvailable(1).get(0).jobHandle();
+    JobHandle running = scheduler.dispatchUpTo(1).get(0).jobHandle();
     scheduler.complete(running);
   }
 
@@ -53,7 +53,7 @@ public class LowerStartEnqueueDispatchStress {
    */
   @Actor
   public void dispatch(IIIII_Result result) {
-    result.r2 = SchedulerTestSupport.dispatchCode(scheduler.capacityAvailable(1));
+    result.r2 = SchedulerTestSupport.dispatchCode(scheduler.dispatchUpTo(1));
   }
 
   /**

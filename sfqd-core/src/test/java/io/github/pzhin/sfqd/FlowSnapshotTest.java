@@ -27,7 +27,7 @@ final class FlowSnapshotTest {
         assertEquals(BigInteger.ZERO, queued.cancelledCost());
         assertEquals(twiceMaximum, queued.queuedCost());
 
-        scheduler.capacityAvailable(1);
+        scheduler.dispatchUpTo(1);
         assertEquals(
                 new FlowSnapshot(1, 1, twiceMaximum, BigInteger.valueOf(Long.MAX_VALUE), BigInteger.ZERO),
                 scheduler.snapshot(flow).orElseThrow());

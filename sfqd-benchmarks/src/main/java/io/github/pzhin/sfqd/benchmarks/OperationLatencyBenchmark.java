@@ -236,7 +236,7 @@ public class OperationLatencyBenchmark {
 
         List<Dispatch<FlowKey, JobKey, Payload>> dispatch(int capacity) {
             requestedCapacity = capacity;
-            dispatched = fixture.scheduler().capacityAvailable(capacity);
+            dispatched = fixture.scheduler().dispatchUpTo(capacity);
             return dispatched;
         }
     }
@@ -361,7 +361,7 @@ public class OperationLatencyBenchmark {
         }
 
         private void establishRunning() {
-            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = fixture.scheduler().capacityAvailable(1);
+            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = fixture.scheduler().dispatchUpTo(1);
             if (dispatches.size() != 1) {
                 throw new IllegalStateException("steady completion requires one dispatch");
             }

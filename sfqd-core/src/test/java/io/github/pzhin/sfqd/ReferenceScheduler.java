@@ -113,7 +113,7 @@ final class ReferenceScheduler<F, J, P> {
         return new EnqueueResult.Accepted(handle);
     }
 
-    List<Dispatch<F, J, P>> capacityAvailable(int capacity) {
+    List<Dispatch<F, J, P>> dispatchUpTo(int capacity) {
         if (capacity < 0 || capacity > config.depth()) {
             throw new IllegalArgumentException("capacity must be in [0, depth]");
         }

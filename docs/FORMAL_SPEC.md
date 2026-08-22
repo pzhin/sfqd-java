@@ -19,12 +19,16 @@ linearization contract concurrent production API.
 - `closeFlow`;
 - `enqueue`;
 - `cancel`;
-- `capacityAvailable`, далее также `dispatch`;
+- `dispatchUpTo`, далее также `dispatch`;
 - `complete`;
 - `snapshot()` и `snapshot(flowHandle)`.
 
 Scheduler выбирает jobs, но не исполняет их, не владеет executor или resource
 pool и не делает callbacks.
+
+Имя `dispatchUpTo` намеренно описывает action: любой непустой результат уже
+необратимо перевёл jobs в running и занял issue slots. Операция не является
+уведомлением о появлении capacity.
 
 ## 2. Модель и конфигурация
 
@@ -89,7 +93,7 @@ time.
 **Проектное решение.** Scheduler не конфигурирует `N` отдельно. Для модели из
 `N` одинаковых parallel non-preemptive ресурсов, где возвращённый job сразу
 занимает один ресурс, caller ДОЛЖЕН установить `D = N` и вызывать
-`capacityAvailable(k)` только когда способен принять до `k` jobs.
+`dispatchUpTo(k)` только когда способен принять до `k` jobs.
 
 Допускается `D != N` для black-box service с собственной очередью или
 ограничением admission depth, но тогда:
@@ -100,7 +104,7 @@ time.
 - физическая утилизация и момент фактического начала job находятся вне
   контракта.
 
-Аргумент `k` в `capacityAvailable(k)` — максимум результатов данного вызова,
+Аргумент `k` в `dispatchUpTo(k)` — максимум результатов данного вызова,
 а не сохраняемый permit и не изменение `D`.
 
 ## 3. Точные числа и пределы
@@ -552,10 +556,14 @@ Registered flow state при deactivation сохраняется. Если уд�
 job scheduler, выполняется reset §3.4 для всех registrations в той же
 transition. Cancellation не возвращает capacity: queued job её не занимал.
 
-### 7.5 `capacityAvailable(k)` / `dispatch(k)`
+### 7.5 `dispatchUpTo(k)` / `dispatch(k)`
 
 `k` — целое `0..D`; отрицательное или `k>D` — invalid argument. `k=0`
 возвращает пустой список без mutation.
+
+Public Java API использует action-oriented имя `dispatchUpTo`, потому что
+непустой вызов меняет lifecycle jobs. Имена, похожие на capacity notification,
+не соответствуют этой семантике.
 
 Число выбираемых jobs:
 
@@ -590,7 +598,7 @@ handles через logical mapping, IDs по их contract, `cost` числен�
 objects или result lists не сравниваются через value `equals`.
 
 Каждый результат немедленно и необратимо расходует один issue slot до
-успешного `complete`. Повторный `capacityAvailable` не может выдать тот же slot
+успешного `complete`. Повторный `dispatchUpTo` не может выдать тот же slot
 или job. Caller ДОЛЖЕН вызывать операцию только будучи готовым принять весь
 возвращаемый batch. Сбой caller/executor после возврата не откатывает dispatch;
 caller всё равно обязан завершить handle через `complete`. Requeue — новая
@@ -609,8 +617,14 @@ Null handle — invalid argument. Opaque handle другого scheduler instanc
 
 Registered flow state при deactivation сохраняется. При удалении последнего
 live job выполняется reset §3.4 для всех registrations. Completion НЕ
-dispatch-ит следующий job автоматически; caller вызывает `capacityAvailable`
+dispatch-ит следующий job автоматически; caller вызывает `dispatchUpTo`
 отдельно.
+
+Pull-based integration обычно реализует внешний pump. Чтобы не оставить
+доступную работу или ресурс без следующей попытки dispatch, caller вызывает
+pump как минимум после каждого успешного enqueue, каждого completion и каждого
+внешнего появления capacity. Scheduler по-прежнему не вызывает callback и
+returned `Dispatch` не содержит ссылки обратно на scheduler.
 
 ### 7.7 `snapshot()`
 
@@ -832,7 +846,7 @@ requests может иметь key меньше key victim; victim должен 
 Реализация, которая удаляет inactive flow при `lastFinish > V`, этот must-pass
 trace не проходит и не соответствует спецификации.
 
-Work conservation означает: каждый вызов `capacityAvailable(k>0)` заполняет
+Work conservation означает: каждый вызов `dispatchUpTo(k>0)` заполняет
 `min(k, freeSlots, queuedJobs)` issue slots. Это не обещание автоматического
 callback и не гарантия насыщения physical resource при неверном `D`, отсутствии
 вызовов или executor failure.
@@ -871,7 +885,7 @@ Scheduler хранит `O(liveJobs + registeredFlows)` records. При
 | Тема | Jin04 | Решение проекта и последствие |
 |---|---|---|
 | Physical `N` | `D` — outstanding issue depth black-box server | Для непосредственных `N` ресурсов требуется `D=N`; иные mappings — external admission model |
-| API/capacity | Нет Java API и caller permits | `capacityAvailable(k)` — atomic bounded batch request; completion не вызывает callback |
+| API/capacity | Нет Java API и caller permits | `dispatchUpTo(k)` — irreversible atomic bounded batch request; внешний pump после enqueue/completion/capacity signal, core не вызывает callback |
 | Tie | Ties arbitrary | Total key `(S, admission sequence)` |
 | Busy-period boundary | Plain §3.2 не даёт полного правила | При global idle `V` и `lastFinish` всех registrations обнуляются, registrations остаются |
 | Cancellation | Отсутствует | Только queued cancel; immutable tags, virtual charge сохраняется до global idle; fairness theorem scoped away from cancelled intervals |

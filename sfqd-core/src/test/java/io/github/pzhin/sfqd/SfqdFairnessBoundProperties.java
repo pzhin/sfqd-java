@@ -134,7 +134,7 @@ class SfqdFairnessBoundProperties {
         }
 
         Set<JobHandle> dispatchedHandles = new HashSet<>();
-        List<Dispatch<String, String, Payload>> running = new ArrayList<>(scheduler.capacityAvailable(depth));
+        List<Dispatch<String, String, Payload>> running = new ArrayList<>(scheduler.dispatchUpTo(depth));
         assertEquals(depth, running.size());
         for (Dispatch<String, String, Payload> dispatch : running) {
             assertDispatch(dispatch, acceptedHandles, dispatchedHandles, expectedJobs);
@@ -169,7 +169,7 @@ class SfqdFairnessBoundProperties {
                     completionTrace,
                     description);
 
-            List<Dispatch<String, String, Payload>> refill = scheduler.capacityAvailable(1);
+            List<Dispatch<String, String, Payload>> refill = scheduler.dispatchUpTo(1);
             assertEquals(
                     1,
                     refill.size(),

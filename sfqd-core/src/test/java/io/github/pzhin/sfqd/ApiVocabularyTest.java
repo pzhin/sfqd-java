@@ -13,9 +13,20 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class ApiVocabularyTest {
+    @Test
+    void irreversibleDispatchOperationHasActionOrientedNameOnly() throws NoSuchMethodException {
+        Method dispatch = SfqdScheduler.class.getMethod("dispatchUpTo", int.class);
+
+        assertEquals(List.class, dispatch.getReturnType());
+        assertFalse(Arrays.stream(SfqdScheduler.class.getMethods())
+                .map(Method::getName)
+                .anyMatch("capacityAvailable"::equals));
+    }
+
     @Test
     void configRejectsValuesOutsideTheSpecifiedDomain() {
         assertThrows(IllegalArgumentException.class, () -> new SchedulerConfig(0, 1, 1));

@@ -150,7 +150,7 @@ final class IdleResetBenchmarkSupport {
         }
 
         private Dispatch<FlowKey, JobKey, Payload> dispatchOne() {
-            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = scheduler.capacityAvailable(1);
+            List<Dispatch<FlowKey, JobKey, Payload>> dispatches = scheduler.dispatchUpTo(1);
             if (dispatches.size() != 1) {
                 throw new IllegalStateException("terminal fixture requires one dispatch");
             }

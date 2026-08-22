@@ -28,7 +28,7 @@ target; teardown validates the result and restores bounded scheduler state.
 ### Steady-state cycles
 
 `SteadyStateCycleBenchmark` measures a complete
-`capacityAvailable -> complete -> enqueue replacement` transaction. A batch
+`dispatchUpTo -> complete -> enqueue replacement` transaction. A batch
 score is batches per second. Convert it to jobs per second only after the
 full-batch invariant has passed.
 
