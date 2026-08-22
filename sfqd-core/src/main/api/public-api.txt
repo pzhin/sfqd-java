@@ -1,0 +1,127 @@
+# SFQ(D) core public API signature manifest
+# Generated from compiled classes by PublicApiManifest; update only for an intentional API change.
+format=1
+
+TYPE name=io.github.pzhin.sfqd.CancelResult kind=enum modifiers=[public, final] typeParameters=[] superclass=java.lang.Enum<io.github.pzhin.sfqd.CancelResult> interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.CancellationAccounting kind=enum modifiers=[public, final] typeParameters=[] superclass=java.lang.Enum<io.github.pzhin.sfqd.CancellationAccounting> interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.CloseFlowResult kind=enum modifiers=[public, final] typeParameters=[] superclass=java.lang.Enum<io.github.pzhin.sfqd.CloseFlowResult> interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.CompletionResult kind=enum modifiers=[public, final] typeParameters=[] superclass=java.lang.Enum<io.github.pzhin.sfqd.CompletionResult> interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.Dispatch kind=class modifiers=[public, final] typeParameters=[F, J, P] superclass=java.lang.Object interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.EnqueueResult kind=interface modifiers=[public, abstract, sealed] typeParameters=[] superclass=- interfaces=[] permits=[io.github.pzhin.sfqd.EnqueueResult$Accepted, io.github.pzhin.sfqd.EnqueueResult$Rejected] synthetic=false
+TYPE name=io.github.pzhin.sfqd.EnqueueResult$Accepted kind=class modifiers=[public, static, final] typeParameters=[] superclass=java.lang.Object interfaces=[io.github.pzhin.sfqd.EnqueueResult] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.EnqueueResult$Rejected kind=enum modifiers=[public, static, final] typeParameters=[] superclass=java.lang.Enum<io.github.pzhin.sfqd.EnqueueResult$Rejected> interfaces=[io.github.pzhin.sfqd.EnqueueResult] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.FlowHandle kind=class modifiers=[public, final] typeParameters=[] superclass=java.lang.Object interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.FlowSnapshot kind=class modifiers=[public, final] typeParameters=[] superclass=java.lang.Object interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.JobHandle kind=class modifiers=[public, final] typeParameters=[] superclass=java.lang.Object interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.RegisterFlowResult kind=interface modifiers=[public, abstract, sealed] typeParameters=[] superclass=- interfaces=[] permits=[io.github.pzhin.sfqd.RegisterFlowResult$Registered, io.github.pzhin.sfqd.RegisterFlowResult$Rejected] synthetic=false
+TYPE name=io.github.pzhin.sfqd.RegisterFlowResult$Registered kind=class modifiers=[public, static, final] typeParameters=[] superclass=java.lang.Object interfaces=[io.github.pzhin.sfqd.RegisterFlowResult] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.RegisterFlowResult$Rejected kind=enum modifiers=[public, static, final] typeParameters=[] superclass=java.lang.Enum<io.github.pzhin.sfqd.RegisterFlowResult$Rejected> interfaces=[io.github.pzhin.sfqd.RegisterFlowResult] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.SchedulerConfig kind=record modifiers=[public, final] typeParameters=[] superclass=java.lang.Record interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.SchedulerSnapshot kind=class modifiers=[public, final] typeParameters=[] superclass=java.lang.Object interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.SfqdScheduler kind=class modifiers=[public, final] typeParameters=[F, J, P] superclass=java.lang.Object interfaces=[] permits=[] synthetic=false
+TYPE name=io.github.pzhin.sfqd.WeightDomain kind=class modifiers=[public, final] typeParameters=[] superclass=java.lang.Object interfaces=[] permits=[] synthetic=false
+
+CONSTRUCTOR owner=io.github.pzhin.sfqd.SchedulerConfig modifiers=[public] typeParameters=[] parameters=[int, int, int, io.github.pzhin.sfqd.CancellationAccounting, io.github.pzhin.sfqd.WeightDomain] throws=[]
+CONSTRUCTOR owner=io.github.pzhin.sfqd.SchedulerConfig modifiers=[public] typeParameters=[] parameters=[int, int, int, io.github.pzhin.sfqd.CancellationAccounting] throws=[]
+CONSTRUCTOR owner=io.github.pzhin.sfqd.SchedulerConfig modifiers=[public] typeParameters=[] parameters=[int, int, int] throws=[]
+CONSTRUCTOR owner=io.github.pzhin.sfqd.SfqdScheduler modifiers=[public] typeParameters=[] parameters=[io.github.pzhin.sfqd.SchedulerConfig] throws=[]
+FIELD owner=io.github.pzhin.sfqd.CancelResult name=CANCELLED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancelResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CancelResult name=NOT_LIVE modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancelResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CancelResult name=TOO_LATE_ALREADY_DISPATCHED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancelResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CancellationAccounting name=CHARGE_RESERVED_COST modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancellationAccounting enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CloseFlowResult name=CLOSED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CloseFlowResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CloseFlowResult name=FAIRNESS_DEBT_ACTIVE modifiers=[public, static, final] type=io.github.pzhin.sfqd.CloseFlowResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CloseFlowResult name=FLOW_ACTIVE modifiers=[public, static, final] type=io.github.pzhin.sfqd.CloseFlowResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CloseFlowResult name=FLOW_NOT_REGISTERED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CloseFlowResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CompletionResult name=COMPLETED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CompletionResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CompletionResult name=NOT_DISPATCHED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CompletionResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CompletionResult name=NOT_LIVE modifiers=[public, static, final] type=io.github.pzhin.sfqd.CompletionResult enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.EnqueueResult$Rejected name=DUPLICATE_LIVE_ID modifiers=[public, static, final] type=io.github.pzhin.sfqd.EnqueueResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.EnqueueResult$Rejected name=FLOW_NOT_REGISTERED modifiers=[public, static, final] type=io.github.pzhin.sfqd.EnqueueResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.EnqueueResult$Rejected name=LIVE_LIMIT modifiers=[public, static, final] type=io.github.pzhin.sfqd.EnqueueResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.EnqueueResult$Rejected name=NUMERIC_LIMIT modifiers=[public, static, final] type=io.github.pzhin.sfqd.EnqueueResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.EnqueueResult$Rejected name=SEQUENCE_EXHAUSTED modifiers=[public, static, final] type=io.github.pzhin.sfqd.EnqueueResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.RegisterFlowResult$Rejected name=DUPLICATE_REGISTERED_ID modifiers=[public, static, final] type=io.github.pzhin.sfqd.RegisterFlowResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.RegisterFlowResult$Rejected name=FLOW_LIMIT modifiers=[public, static, final] type=io.github.pzhin.sfqd.RegisterFlowResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.RegisterFlowResult$Rejected name=FLOW_SEQUENCE_EXHAUSTED modifiers=[public, static, final] type=io.github.pzhin.sfqd.RegisterFlowResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.RegisterFlowResult$Rejected name=WEIGHT_OUTSIDE_DOMAIN modifiers=[public, static, final] type=io.github.pzhin.sfqd.RegisterFlowResult$Rejected enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.SchedulerConfig name=MAX_DEPTH modifiers=[public, static, final] type=int enumConstant=false synthetic=false
+METHOD owner=io.github.pzhin.sfqd.CancelResult name=valueOf modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CancelResult parameters=[java.lang.String] throws=[]
+METHOD owner=io.github.pzhin.sfqd.CancelResult name=values modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CancelResult[] parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.CancellationAccounting name=valueOf modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CancellationAccounting parameters=[java.lang.String] throws=[]
+METHOD owner=io.github.pzhin.sfqd.CancellationAccounting name=values modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CancellationAccounting[] parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.CloseFlowResult name=valueOf modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CloseFlowResult parameters=[java.lang.String] throws=[]
+METHOD owner=io.github.pzhin.sfqd.CloseFlowResult name=values modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CloseFlowResult[] parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.CompletionResult name=valueOf modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CompletionResult parameters=[java.lang.String] throws=[]
+METHOD owner=io.github.pzhin.sfqd.CompletionResult name=values modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.CompletionResult[] parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.Dispatch name=cost modifiers=[public] typeParameters=[] return=long parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.Dispatch name=flowId modifiers=[public] typeParameters=[] return=F parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.Dispatch name=jobHandle modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.JobHandle parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.Dispatch name=jobId modifiers=[public] typeParameters=[] return=J parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.Dispatch name=payload modifiers=[public] typeParameters=[] return=P parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.EnqueueResult$Accepted name=jobHandle modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.JobHandle parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.EnqueueResult$Rejected name=valueOf modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.EnqueueResult$Rejected parameters=[java.lang.String] throws=[]
+METHOD owner=io.github.pzhin.sfqd.EnqueueResult$Rejected name=values modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.EnqueueResult$Rejected[] parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowHandle name=equals modifiers=[public] typeParameters=[] return=boolean parameters=[java.lang.Object] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowHandle name=hashCode modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowHandle name=toString modifiers=[public] typeParameters=[] return=java.lang.String parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=acceptedSuppliedCost modifiers=[public] typeParameters=[] return=java.math.BigInteger parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=cancelledSuppliedCost modifiers=[public] typeParameters=[] return=java.math.BigInteger parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=completedSuppliedCost modifiers=[public] typeParameters=[] return=java.math.BigInteger parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=dispatchedSuppliedCost modifiers=[public] typeParameters=[] return=java.math.BigInteger parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=equals modifiers=[public] typeParameters=[] return=boolean parameters=[java.lang.Object] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=hashCode modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=queuedJobs modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=queuedSuppliedCost modifiers=[public] typeParameters=[] return=java.math.BigInteger parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=runningJobs modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=runningSuppliedCost modifiers=[public] typeParameters=[] return=java.math.BigInteger parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.FlowSnapshot name=toString modifiers=[public] typeParameters=[] return=java.lang.String parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.JobHandle name=equals modifiers=[public] typeParameters=[] return=boolean parameters=[java.lang.Object] throws=[]
+METHOD owner=io.github.pzhin.sfqd.JobHandle name=hashCode modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.JobHandle name=toString modifiers=[public] typeParameters=[] return=java.lang.String parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.RegisterFlowResult$Registered name=flowHandle modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.FlowHandle parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.RegisterFlowResult$Rejected name=valueOf modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.RegisterFlowResult$Rejected parameters=[java.lang.String] throws=[]
+METHOD owner=io.github.pzhin.sfqd.RegisterFlowResult$Rejected name=values modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.RegisterFlowResult$Rejected[] parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=cancellationAccounting modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.CancellationAccounting parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=depth modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=equals modifiers=[public, final] typeParameters=[] return=boolean parameters=[java.lang.Object] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=hashCode modifiers=[public, final] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=maxFlows modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=maxLiveJobs modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=toString modifiers=[public, final] typeParameters=[] return=java.lang.String parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerConfig name=weightDomain modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.WeightDomain parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=acceptedTotal modifiers=[public] typeParameters=[] return=long parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=activeFlows modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=backloggedFlows modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=cancelledTotal modifiers=[public] typeParameters=[] return=long parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=completedTotal modifiers=[public] typeParameters=[] return=long parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=depth modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=dispatchedTotal modifiers=[public] typeParameters=[] return=long parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=equals modifiers=[public] typeParameters=[] return=boolean parameters=[java.lang.Object] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=freeSlots modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=hashCode modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=maxFlows modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=maxLiveJobs modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=queuedJobs modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=registeredFlows modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=runningJobs modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SchedulerSnapshot name=toString modifiers=[public] typeParameters=[] return=java.lang.String parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=cancel modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.CancelResult parameters=[io.github.pzhin.sfqd.JobHandle] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=closeFlow modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.CloseFlowResult parameters=[io.github.pzhin.sfqd.FlowHandle] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=complete modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.CompletionResult parameters=[io.github.pzhin.sfqd.JobHandle] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=dispatchUpTo modifiers=[public] typeParameters=[] return=java.util.List<io.github.pzhin.sfqd.Dispatch<F, J, P>> parameters=[int] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=enqueue modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.EnqueueResult parameters=[io.github.pzhin.sfqd.FlowHandle, J, P, long] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=registerFlow modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.RegisterFlowResult parameters=[F, long] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=snapshot modifiers=[public] typeParameters=[] return=io.github.pzhin.sfqd.SchedulerSnapshot parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.SfqdScheduler name=snapshot modifiers=[public] typeParameters=[] return=java.util.Optional<io.github.pzhin.sfqd.FlowSnapshot> parameters=[io.github.pzhin.sfqd.FlowHandle] throws=[]
+METHOD owner=io.github.pzhin.sfqd.WeightDomain name=commonScale modifiers=[public] typeParameters=[] return=java.util.OptionalLong parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.WeightDomain name=divisorsOf modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.WeightDomain parameters=[long] throws=[]
+METHOD owner=io.github.pzhin.sfqd.WeightDomain name=equals modifiers=[public] typeParameters=[] return=boolean parameters=[java.lang.Object] throws=[]
+METHOD owner=io.github.pzhin.sfqd.WeightDomain name=hashCode modifiers=[public] typeParameters=[] return=int parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.WeightDomain name=toString modifiers=[public] typeParameters=[] return=java.lang.String parameters=[] throws=[]
+METHOD owner=io.github.pzhin.sfqd.WeightDomain name=unrestricted modifiers=[public, static] typeParameters=[] return=io.github.pzhin.sfqd.WeightDomain parameters=[] throws=[]
+RECORD_COMPONENT owner=io.github.pzhin.sfqd.SchedulerConfig name=cancellationAccounting type=io.github.pzhin.sfqd.CancellationAccounting
+RECORD_COMPONENT owner=io.github.pzhin.sfqd.SchedulerConfig name=depth type=int
+RECORD_COMPONENT owner=io.github.pzhin.sfqd.SchedulerConfig name=maxFlows type=int
+RECORD_COMPONENT owner=io.github.pzhin.sfqd.SchedulerConfig name=maxLiveJobs type=int
+RECORD_COMPONENT owner=io.github.pzhin.sfqd.SchedulerConfig name=weightDomain type=io.github.pzhin.sfqd.WeightDomain

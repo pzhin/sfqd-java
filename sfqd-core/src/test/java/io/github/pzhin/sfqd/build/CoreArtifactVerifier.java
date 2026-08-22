@@ -6,7 +6,6 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -35,25 +34,6 @@ import java.util.zip.ZipFile;
 public final class CoreArtifactVerifier {
     private static final String LICENSE_ENTRY = "META-INF/LICENSE";
     private static final String SCHEDULER_PATH = "io/github/pzhin/sfqd/SfqdScheduler";
-    private static final Set<String> EXPECTED_PUBLIC_TYPES = Set.of(
-            "io.github.pzhin.sfqd.CancelResult",
-            "io.github.pzhin.sfqd.CancellationAccounting",
-            "io.github.pzhin.sfqd.CloseFlowResult",
-            "io.github.pzhin.sfqd.CompletionResult",
-            "io.github.pzhin.sfqd.Dispatch",
-            "io.github.pzhin.sfqd.EnqueueResult",
-            "io.github.pzhin.sfqd.EnqueueResult$Accepted",
-            "io.github.pzhin.sfqd.EnqueueResult$Rejected",
-            "io.github.pzhin.sfqd.FlowHandle",
-            "io.github.pzhin.sfqd.FlowSnapshot",
-            "io.github.pzhin.sfqd.JobHandle",
-            "io.github.pzhin.sfqd.RegisterFlowResult",
-            "io.github.pzhin.sfqd.RegisterFlowResult$Registered",
-            "io.github.pzhin.sfqd.RegisterFlowResult$Rejected",
-            "io.github.pzhin.sfqd.SchedulerConfig",
-            "io.github.pzhin.sfqd.SchedulerSnapshot",
-            "io.github.pzhin.sfqd.SfqdScheduler",
-            "io.github.pzhin.sfqd.WeightDomain");
 
     private CoreArtifactVerifier() {
     }
@@ -90,6 +70,8 @@ public final class CoreArtifactVerifier {
         require(Files.isDirectory(targetDirectory.resolve("classes")),
                 "compiled main output is missing");
         require(Files.isRegularFile(licensePath), "project LICENSE is missing");
+        require(Files.isRegularFile(projectDirectory.resolve("src/main/api/public-api.txt")),
+                "checked-in public API signature manifest is missing");
 
         selfTestDiscovery(outputTimestamp);
         Map<ArtifactRole, Path> artifacts = classifyArtifacts(targetDirectory);
@@ -129,8 +111,10 @@ public final class CoreArtifactVerifier {
         verifyLicense(sourcesArtifact, license, "sources");
         verifyLicense(javadocArtifact, license, "JavaDoc");
         verifyClassRelease(binaryArtifact, binaryEntries, javaRelease);
-        verifyPublicTypes(binaryArtifact, binaryEntries);
-        verifyJavadocTypes(javadocEntries);
+        String expectedPublicApi = PublicApiManifest.read(
+                projectDirectory.resolve("src/main/api/public-api.txt"));
+        verifyPublicApi(binaryArtifact, binaryEntries, expectedPublicApi);
+        verifyJavadocTypes(javadocEntries, PublicApiManifest.publicTypeNames(expectedPublicApi));
         verifyNoToolingPackage(artifacts);
     }
 
@@ -153,29 +137,29 @@ public final class CoreArtifactVerifier {
         }
     }
 
-    private static void verifyPublicTypes(Path binaryArtifact, Set<String> binaryEntries)
+    private static void verifyPublicApi(
+            Path binaryArtifact,
+            Set<String> binaryEntries,
+            String expectedPublicApi)
             throws IOException, ClassNotFoundException {
-        Set<String> actualPublicTypes = new TreeSet<>();
-        URL[] urls = {binaryArtifact.toUri().toURL()};
-        try (URLClassLoader loader = new URLClassLoader(urls, ClassLoader.getPlatformClassLoader())) {
-            for (String entry : entriesEndingWith(binaryEntries, ".class")) {
-                if (entry.equals("module-info.class") || entry.endsWith("/package-info.class")) {
-                    continue;
-                }
-                String binaryName = entry.substring(0, entry.length() - ".class".length()).replace('/', '.');
-                Class<?> type = Class.forName(binaryName, false, loader);
-                if (Modifier.isPublic(type.getModifiers())) {
-                    actualPublicTypes.add(binaryName);
-                }
+        Set<String> binaryNames = new TreeSet<>();
+        for (String entry : entriesEndingWith(binaryEntries, ".class")) {
+            if (!entry.equals("module-info.class") && !entry.endsWith("/package-info.class")) {
+                binaryNames.add(entry.substring(0, entry.length() - ".class".length()).replace('/', '.'));
             }
         }
-        assertEqual("binary JAR public type surface differs from the specified API",
-                EXPECTED_PUBLIC_TYPES, actualPublicTypes);
+        URL[] urls = {binaryArtifact.toUri().toURL()};
+        try (URLClassLoader loader = new URLClassLoader(urls, ClassLoader.getPlatformClassLoader())) {
+            String actualPublicApi = PublicApiManifest.describe(loader, binaryNames);
+            require(expectedPublicApi.equals(actualPublicApi),
+                    "binary JAR public API signatures differ from the checked-in manifest"
+                            + PublicApiManifest.difference(expectedPublicApi, actualPublicApi));
+        }
     }
 
-    private static void verifyJavadocTypes(Set<String> entries) {
+    private static void verifyJavadocTypes(Set<String> entries, Set<String> expectedPublicTypes) {
         Set<String> expected = new TreeSet<>();
-        for (String binaryName : EXPECTED_PUBLIC_TYPES) {
+        for (String binaryName : expectedPublicTypes) {
             String simpleName = binaryName.substring("io.github.pzhin.sfqd.".length()).replace('$', '.');
             expected.add("io/github/pzhin/sfqd/" + simpleName + ".html");
         }
