@@ -16,6 +16,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>The scheduler only makes admission and dispatch decisions. It neither executes jobs nor owns an executor,
  * thread pool, resource pool, or completion callback. Fairness is measured against the caller-supplied cost and the
  * registered flow weight, not against unknown actual execution time.
+ * Completed-work fairness guarantees do not apply to traces containing cancellation because the supported
+ * {@link CancellationAccounting#CHARGE_RESERVED_COST} policy retains cancelled jobs' virtual cost until global idle.
  *
  * <p>All public operations are linearizable and may be invoked concurrently without external synchronization. This
  * baseline uses one private lock: a successful mutating operation linearizes when its complete state transition is
@@ -70,7 +72,7 @@ public final class SfqdScheduler<F, J, P> {
     /**
      * Creates an empty scheduler with immutable limits.
      *
-     * @param config depth and cardinality limits
+     * @param config depth, cardinality limits, and cancellation accounting policy
      * @throws NullPointerException if config is null
      */
     public SfqdScheduler(SchedulerConfig config) {
@@ -225,6 +227,13 @@ public final class SfqdScheduler<F, J, P> {
      * {@code CANCELLED} and absence from the returned batch means cancellation won; presence in a batch means dispatch
      * won. If an earlier batch selected only other jobs, this queued handle remains cancellable. A late
      * {@code NOT_LIVE} alone does not identify the winner or terminal cause.
+     *
+     * <p><strong>Fairness accounting warning:</strong> under
+     * {@link CancellationAccounting#CHARGE_RESERVED_COST}, cancellation does not reduce the flow's finish history and
+     * does not recompute tags of its later jobs. The cancelled supplied cost remains a virtual charge until all live
+     * jobs leave the scheduler and the global busy period ends. Completed-work fairness guarantees therefore do not
+     * apply to traces containing cancellation. Workloads with frequent deadline or timeout cancellations must account
+     * for the resulting dispatch delay.
      *
      * @param handle opaque job capability
      * @return cancellation outcome at the operation's linearization point

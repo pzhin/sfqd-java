@@ -78,6 +78,7 @@ write_expected_public_types() {
   local destination=$1
   printf '%s\n' \
     io.github.pzhin.sfqd.CancelResult \
+    io.github.pzhin.sfqd.CancellationAccounting \
     io.github.pzhin.sfqd.CloseFlowResult \
     io.github.pzhin.sfqd.CompletionResult \
     io.github.pzhin.sfqd.Dispatch \

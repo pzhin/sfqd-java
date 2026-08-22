@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 final class PublicArtifactSurfaceTest {
     private static final Set<String> EXPECTED_PUBLIC_TYPES = Set.of(
+            "io.github.pzhin.sfqd.CancellationAccounting",
             "io.github.pzhin.sfqd.CancelResult",
             "io.github.pzhin.sfqd.CloseFlowResult",
             "io.github.pzhin.sfqd.CompletionResult",

@@ -7,6 +7,31 @@ import org.junit.jupiter.api.Test;
 
 class SfqdFlowHistoryTest {
     @Test
+    void cancelledCostDelaysLaterWorkUntilGlobalIdle() {
+        SfqdScheduler<String, String, Object> scheduler =
+                new SfqdScheduler<>(new SchedulerConfig(1, 2, 3));
+        FlowHandle charged = registered(scheduler.registerFlow("charged", 1L));
+        FlowHandle competing = registered(scheduler.registerFlow("competing", 1L));
+        JobHandle expensive = accepted(scheduler.enqueue(charged, "cancelled", new Object(), 5L));
+        JobHandle competingNext = accepted(scheduler.enqueue(competing, "competing-0", new Object(), 1L));
+        assertEquals(CancelResult.CANCELLED, scheduler.cancel(expensive));
+        JobHandle chargedNext = accepted(scheduler.enqueue(charged, "charged-next", new Object(), 1L));
+
+        for (int index = 0; index < 5; index++) {
+            Dispatch<String, String, Object> selected = scheduler.capacityAvailable(1).getFirst();
+            assertEquals(competingNext, selected.jobHandle());
+            assertEquals("competing-" + index, selected.jobId());
+            assertEquals(CompletionResult.COMPLETED, scheduler.complete(selected.jobHandle()));
+            if (index < 4) {
+                competingNext = accepted(
+                        scheduler.enqueue(competing, "competing-" + (index + 1), new Object(), 1L));
+            }
+        }
+
+        assertEquals(chargedNext, scheduler.capacityAvailable(1).getFirst().jobHandle());
+    }
+
+    @Test
     void activeNonBackloggedFlowRetainsFinishHistory() {
         SfqdScheduler<String, String, Object> scheduler =
                 new SfqdScheduler<>(new SchedulerConfig(2, 2, 4));
