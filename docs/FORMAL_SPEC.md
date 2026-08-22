@@ -1,129 +1,125 @@
-# SFQ(D) Java Library — формальная спецификация
+# SFQ(D) Java Library — Formal Specification
 
-## 1. Статус, область и нормативные слова
+## 1. Status, scope, and normative terms
 
-Статус: нормативная спецификация последовательного поведения библиотеки и
-linearization contract concurrent production API.
+Status: normative specification of the library's sequential behavior and the
+linearization contract of the concurrent production API.
 
-Теоретическая основа простым языком и ссылки на полные статьи находятся в
-[THEORY.md](THEORY.md). Все решения, которых нет в публикациях, помечены как
-**проектное решение**.
+[THEORY.md](THEORY.md) provides a plain-language theoretical foundation and
+links to the full papers. Every decision not defined by the cited literature is
+marked as a **design decision**.
 
-Слова **ДОЛЖЕН**, **НЕ ДОЛЖЕН**, **МОЖЕТ** имеют нормативный смысл. Публичные
-имена Java-типов и методов здесь не фиксируются; фиксируется наблюдаемая
-семантика public API и production implementation.
+The terms **MUST**, **MUST NOT**, and **MAY** are normative. This document does
+not freeze public Java type and method names; it freezes the observable
+semantics of the public API and production implementation.
 
-В область спецификации входят один scheduler instance и вызовы:
+The specification covers one scheduler instance and these calls:
 
 - `registerFlow`;
 - `closeFlow`;
 - `enqueue`;
 - `cancel`;
-- `dispatchUpTo`, далее также `dispatch`;
+- `dispatchUpTo`, also called `dispatch` below;
 - `complete`;
-- `snapshot()` и `snapshot(flowHandle)`.
+- `snapshot()` and `snapshot(flowHandle)`.
 
-Scheduler выбирает jobs, но не исполняет их, не владеет executor или resource
-pool и не делает callbacks.
+The scheduler selects jobs but does not execute them, own an executor or
+resource pool, or invoke callbacks.
 
-Имя `dispatchUpTo` намеренно описывает action: любой непустой результат уже
-необратимо перевёл jobs в running и занял issue slots. Операция не является
-уведомлением о появлении capacity.
+The name `dispatchUpTo` intentionally describes an action: every non-empty
+result has already moved jobs irreversibly to running and occupied issue slots.
+The operation is not a notification that capacity has become available.
 
-## 2. Модель и конфигурация
+## 2. Model and configuration
 
-### 2.1 Внешние сущности
+### 2.1 External entities
 
-**Проектное API/numeric решение.** Поддерживаемый домен входов:
+**API and numeric design decision.** The supported input domain is:
 
-- `FlowId` — произвольный ненулевой caller object с эквивалентностью по
-  `equals`. Его `equals` и `hashCode` ДОЛЖНЫ оставаться стабильными, пока flow
+- `FlowId` — any non-null caller object with equality defined by `equals`. Its
+  `equals` and `hashCode` behavior MUST remain stable while the flow is
   registered.
-- `FlowHandle` — opaque capability конкретной регистрации flow. Enqueue
-  принимает этот handle, а не raw `FlowId`/weight.
-- `JobId` — произвольный ненулевой caller object с эквивалентностью по
-  `equals`. Его `equals` и `hashCode` ДОЛЖНЫ оставаться стабильными, пока job
-  live.
-- `Payload` — произвольный ненулевой caller object. Scheduler его не
-  интерпретирует.
-- `cost` — supplied cost job, целое число `1..Long.MAX_VALUE`.
-- `weight` — вес flow, целое число `1..Long.MAX_VALUE`.
+- `FlowHandle` — an opaque capability for one particular flow registration.
+  Enqueue accepts this handle, not a raw `FlowId` or weight.
+- `JobId` — any non-null caller object with equality defined by `equals`. Its
+  `equals` and `hashCode` behavior MUST remain stable while the job is live.
+- `Payload` — any non-null caller object. The scheduler does not interpret it.
+- `cost` — the supplied job cost, an integer in `1..Long.MAX_VALUE`.
+- `weight` — the flow weight, an integer in `1..Long.MAX_VALUE`.
 
-`FlowId` и `JobId` ДОЛЖНЫ соблюдать Java `equals/hashCode` contract на всём
-указанном lifetime. Оба метода ДОЛЖНЫ быть deterministic, side-effect-free,
-non-reentrant относительно scheduler, не вызывать никакие scheduler operations
-и не бросать exceptions. Это caller precondition, а не проверяемый operational
-outcome: после помещения object в hash-based index библиотека не может надёжно
-обнаружить нарушение. При нарушении этого precondition identity/linearizability
-guarantees не применимы; implementation НЕ ДОЛЖНА заявлять, что способна
-атомарно отвергнуть mutable или throwing key после его использования.
+`FlowId` and `JobId` MUST honor the Java `equals/hashCode` contract throughout
+the stated lifetime. Both methods MUST be deterministic, side-effect-free, and
+non-reentrant with respect to the scheduler; they MUST NOT invoke scheduler
+operations or throw exceptions. This is a caller precondition, not a detectable
+operational outcome: after an object enters a hash-based index, the library
+cannot reliably detect a violation. If the precondition is violated, identity
+and linearizability guarantees do not apply. The implementation MUST NOT claim
+that it can atomically reject a mutable or throwing key after using that key.
 
-Fairness определяется относительно `cost`, а не неизвестного actual execution
-time.
+Fairness is defined in terms of `cost`, not unknown actual execution time.
 
-### 2.2 Неизменяемая конфигурация instance
+### 2.2 Immutable instance configuration
 
-**Проектное configuration решение.**
+**Configuration design decision.**
 
-- `D` — число issue slots, целое `1..1_000_000`.
-- `maxFlows` — предел одновременно registered flows, целое
-  `1..Integer.MAX_VALUE`.
-- `maxLiveJobs` — явный предел `queued + dispatched`, целое
+- `D` — the number of issue slots, an integer in `1..1_000_000`.
+- `maxFlows` — the maximum number of simultaneously registered flows, an
+  integer in `1..Integer.MAX_VALUE`.
+- `maxLiveJobs` — the explicit `queued + dispatched` limit, an integer in
   `D..Integer.MAX_VALUE`.
-- `cancellationAccounting` — фиксированная policy
-  `CancellationAccounting.CHARGE_RESERVED_COST`; альтернативная policy
-  отсутствует.
+- `cancellationAccounting` — the fixed policy
+  `CancellationAccounting.CHARGE_RESERVED_COST`; no alternative policy exists.
 
-После создания instance все четыре значения неизменяемы. Null, выход за диапазон
-и `maxLiveJobs < D` отвергаются до создания observable instance.
+All four values are immutable after instance construction. Null values,
+out-of-range values, and `maxLiveJobs < D` are rejected before an observable
+instance exists.
 
-Верхняя граница `1_000_000` задаёт допустимое представление и валидацию
-конфигурации. Она не утверждает, что атомарный batch такого размера имеет
-приемлемые latency, throughput, allocation rate или время удержания внутренней
-сериализации. Репозиторная измерительная матрица ограничена `D <= 1_024` и сама
-по себе, без сохранённого и проверенного запуска, не является результатом
-производительности.
+The upper bound `1_000_000` defines the supported representation and
+configuration validation. It does not claim that an atomic batch of this size
+has acceptable latency, throughput, allocation rate, or internal serialization
+hold time. The repository's measurement matrix is limited to `D <= 1_024` and,
+without a preserved and verified run, is not itself a performance result.
 
-### 2.3 Отображение D на N ресурсов
+### 2.3 Mapping D to N resources
 
-В Jin04 `D` означает максимум dispatched-but-not-completed requests, а не
-число физических ресурсов; см.
+In Jin04, `D` is the maximum number of dispatched-but-not-completed requests,
+not the number of physical resources; see
 [Why the `(D)` matters](THEORY.md#why-the-d-matters).
 
-**Проектное решение.** Scheduler не конфигурирует `N` отдельно. Для модели из
-`N` одинаковых parallel non-preemptive ресурсов, где возвращённый job сразу
-занимает один ресурс, caller ДОЛЖЕН установить `D = N` и вызывать
-`dispatchUpTo(k)` только когда способен принять до `k` jobs.
+**Design decision.** The scheduler does not configure `N` separately. For a
+model with `N` identical parallel non-preemptive resources, where every
+returned job immediately occupies one resource, the caller MUST set `D = N`
+and call `dispatchUpTo(k)` only when it can accept up to `k` jobs.
 
-Допускается `D != N` для black-box service с собственной очередью или
-ограничением admission depth, но тогда:
+`D != N` is allowed for a black-box service with an internal queue or admission
+depth limit, but then:
 
-- fairness bound использует именно настроенный `D`;
-- библиотека гарантирует work conservation issue slots, не физического
-  устройства;
-- физическая утилизация и момент фактического начала job находятся вне
-  контракта.
+- the fairness bound uses the configured `D`;
+- the library guarantees work conservation of issue slots, not of a physical
+  device;
+- physical utilization and the time at which a job actually starts are outside
+  the contract.
 
-Аргумент `k` в `dispatchUpTo(k)` — максимум результатов данного вызова,
-а не сохраняемый permit и не изменение `D`.
+The `k` argument of `dispatchUpTo(k)` is the maximum number of results from that
+call, not a retained permit and not a change to `D`.
 
-## 3. Точные числа и пределы
+## 3. Exact numbers and limits
 
-### 3.1 Семантическое представление
+### 3.1 Semantic representation
 
-Tag — точное неотрицательное рациональное число `n/d`, где:
+A tag is an exact non-negative rational number `n/d`, where:
 
-- `n` — неотрицательный `BigInteger`;
-- `d` — положительный `BigInteger`;
+- `n` is a non-negative `BigInteger`;
+- `d` is a positive `BigInteger`;
 - `gcd(n,d)=1`;
-- zero канонически представлен как `0/1`.
+- zero has the canonical representation `0/1`.
 
-Сложение, `max` и сравнение выполняются математически точно. Сравнение `a/b`
-и `c/d` использует знак `a*d - c*b`; floating point, decimal rounding и
-приближённое деление запрещены. Временные произведения также вычисляются без
-fixed-width overflow.
+Addition, `max`, and comparison are mathematically exact. Comparing `a/b` and
+`c/d` uses the sign of `a*d - c*b`; floating point, decimal rounding, and
+approximate division are forbidden. Intermediate products are also computed
+without fixed-width overflow.
 
-Для принятого job normalized increment равен точной дроби
+For an accepted job, the normalized increment is the exact fraction
 
 ```text
 increment = cost / weight.
@@ -131,67 +127,68 @@ increment = cost / weight.
 
 ### 3.2 Numeric budget
 
-**Проектное решение.** После канонического сокращения числитель и знаменатель
-каждого сохраняемого tag ДОЛЖНЫ иметь `bitLength <= 4096`. Это часть
-fail-closed engineering budget, а не approximation и не обещание принять все
-математически корректные traces из syntactically valid `long` inputs.
-`NUMERIC_LIMIT` МОЖЕТ возникнуть при допустимых `cost` и `weight`, если exact
-history уже создала слишком сложную дробь. Это явная граница production
-representation; математический unbounded-rational oracle её не имеет.
+**Design decision.** After canonical reduction, the numerator and denominator
+of every stored tag MUST have `bitLength <= 4096`. This is part of a fail-closed
+engineering budget, not an approximation and not a promise to accept every
+mathematically valid trace made from syntactically valid `long` inputs.
+`NUMERIC_LIMIT` MAY occur for valid `cost` and `weight` values if the exact
+history has already produced a fraction that is too complex. This is an
+explicit production-representation boundary; the mathematical
+unbounded-rational oracle does not have it.
 
-Persistent budget относится к `V`, `S/F` queued jobs и `lastFinish` каждого
-registered flow. Exact primitive над двумя persistent values МОЖЕТ временно
-создавать числитель/знаменатель или cross-product до 8193 bits; это
-`MAX_TRANSIENT_BITS`.
+The persistent budget applies to `V`, the `S/F` tags of queued jobs, and the
+`lastFinish` of every registered flow. An exact primitive over two persistent
+values MAY temporarily produce a numerator, denominator, or cross-product of
+up to 8193 bits; this is `MAX_TRANSIENT_BITS`.
 
-Transient budget определяется математическими quantities, а не внутренними
-`BigInteger` objects конкретного алгоритма. Для reduced `a/b` и `c/d`
-канонические quantities primitive:
+The transient budget is defined by mathematical quantities, not by internal
+`BigInteger` objects of a particular algorithm. For reduced `a/b` and `c/d`,
+the canonical quantities of a primitive are:
 
 ```text
 add raw numerator       = a*d + c*b
 subtract raw numerator  = abs(a*d - c*b)
 raw denominator         = b*d
-comparison products     = a*d и c*b
-rebase subtraction      = те же subtract numerator и denominator
-reduced result           = raw numerator/raw denominator после gcd reduction
+comparison products     = a*d and c*b
+rebase subtraction      = the same subtract numerator and denominator
+reduced result          = raw numerator/raw denominator after gcd reduction
 ```
 
-Bit length каждого перечисленного raw/reduced quantity ДОЛЖЕН быть не больше
-8193 во время primitive; persistent result после reduction дополнительно
-ДОЛЖЕН уложиться в 4096. Implementation МОЖЕТ применять gcd-before-multiply,
-cross-cancellation или иной exact algorithm, но принимает/отвергает операцию
-так, как если бы проверялись эти канонические mathematical quantities. Размер
-случайного implementation temporary object не является API outcome и не может
-сам по себе вызвать `NUMERIC_LIMIT`.
+The bit length of every listed raw or reduced quantity MUST be at most 8193
+during a primitive; a persistent result after reduction MUST additionally fit
+within 4096 bits. An implementation MAY use gcd-before-multiply,
+cross-cancellation, or another exact algorithm, but it accepts or rejects the
+operation as if these canonical mathematical quantities had been checked. The
+size of an incidental implementation temporary object is not an API outcome
+and cannot by itself cause `NUMERIC_LIMIT`.
 
-Canonical trigger: только если первоначально рассчитанный новый `S` или `F`
-не помещается в persistent budget, `enqueue` ДОЛЖЕН ровно один раз рассчитать
-точный rebase из §3.3 на временной копии и повторить расчёт. Если rebase или
-повторный расчёт не помещается в transient budget, либо хотя бы одно итоговое
-сохраняемое значение не помещается в persistent budget, возвращается
-`NUMERIC_LIMIT`, а весь observable state остаётся прежним. Иначе rebase и
-enqueue фиксируются одной транзакцией. Silent overflow, округление, partial
-rebase и изменение order запрещены.
+Canonical trigger: only when an initially calculated new `S` or `F` does not
+fit the persistent budget, `enqueue` MUST calculate the exact rebase from §3.3
+exactly once on a temporary copy and retry the calculation. If the rebase or
+retry does not fit the transient budget, or if any final stored value does not
+fit the persistent budget, the operation returns `NUMERIC_LIMIT` and leaves all
+observable state unchanged. Otherwise, the rebase and enqueue commit as one
+transaction. Silent overflow, rounding, partial rebase, and order changes are
+forbidden.
 
-При `V=0` и `lastFinish=0` зарегистрированный flow ДОЛЖЕН принять один job с
-любой парой `cost,weight` из `1..Long.MAX_VALUE`, включая максимальные значения,
-если не сработал независимый identity/live limit: сокращённая одиночная дробь
-занимает не более 63 bits в каждом компоненте.
+When `V=0` and `lastFinish=0`, a registered flow MUST accept one job with any
+`cost,weight` pair in `1..Long.MAX_VALUE`, including the maximum values, unless
+an independent identity or live-item limit applies: a single reduced fraction
+occupies at most 63 bits in either component.
 
-Число успешно принятых jobs за lifetime instance ограничено
-`Long.MAX_VALUE`. State хранит `lastJobSequence` в диапазоне
-`0..Long.MAX_VALUE`; новый handle получает `lastJobSequence + 1` только если
-`lastJobSequence < Long.MAX_VALUE`. После выдачи sequence `Long.MAX_VALUE`
-последующие enqueue возвращают `SEQUENCE_EXHAUSTED`; сложение с переполнением
-никогда не выполняется, sequence никогда не переиспользуется.
-Неуспешные/no-op вызовы не расходуют sequence.
+The number of successfully accepted jobs over an instance lifetime is limited
+to `Long.MAX_VALUE`. State stores `lastJobSequence` in
+`0..Long.MAX_VALUE`; a new handle receives `lastJobSequence + 1` only when
+`lastJobSequence < Long.MAX_VALUE`. After sequence `Long.MAX_VALUE` has been
+issued, later enqueue calls return `SEQUENCE_EXHAUSTED`; overflowing addition is
+never performed and a sequence is never reused. Failed and no-op calls do not
+consume a sequence.
 
-Flow registrations используют независимый `lastFlowSequence` с теми же
-правилами `0..Long.MAX_VALUE`. После исчерпания `registerFlow` возвращает
-`FLOW_SEQUENCE_EXHAUSTED`; закрытый FlowHandle никогда не переиспользуется.
+Flow registrations use an independent `lastFlowSequence` with the same
+`0..Long.MAX_VALUE` rules. After exhaustion, `registerFlow` returns
+`FLOW_SEQUENCE_EXHAUSTED`; a closed FlowHandle is never reused.
 
-Сводные cardinality/lifetime ranges:
+Summary of cardinality and lifetime ranges:
 
 ```text
 running jobs       0..D
@@ -205,96 +202,100 @@ stored tag bits    0..4096 per numerator or denominator
 transient tag bits 0..8193 per exact primitive component
 ```
 
-Число read-only и неуспешных вызовов не ограничено scheduler state. Число
-успешных cancel/dispatch/complete ограничено числом принятых incarnations.
+The number of read-only and failed calls is not limited by scheduler state. The
+number of successful cancel, dispatch, and complete calls is limited by the
+number of accepted incarnations.
 
 ### 3.3 Exact rebasing
 
-Rebase — представительная замена одного и того же семантического состояния.
-Пусть до rebase `B = V`. Тогда атомарно:
+A rebase is a representational substitution of the same semantic state. Let
+`B = V` before the rebase. The following then happen atomically:
 
-1. для каждого queued job: `S := S-B`, `F := F-B`;
-2. для каждого registered flow, включая inactive:
+1. for every queued job: `S := S-B`, `F := F-B`;
+2. for every registered flow, including inactive flows:
    `lastFinish := max(0, lastFinish-B)`;
 3. `V := 0`.
 
-Инвариант `S >= V` для queued jobs гарантирует неотрицательность. Tags уже
-dispatched jobs scheduler не хранит, поэтому их преобразование не требуется.
-Преобразование сохраняет все будущие `max`, increments, сравнения и tie order.
+The `S >= V` invariant for queued jobs guarantees non-negativity. The scheduler
+does not retain the tags of already dispatched jobs, so they require no
+transformation. The transformation preserves all future `max` operations,
+increments, comparisons, and tie order.
 
-Rebase НЕ МОЖЕТ быть частичным. Он выполняется только по canonical trigger
-§3.2 и внутри той же atomic state
-transition, что и вызвавшая его операция. Его worst-case time и temporary
-space — `O(queuedJobs + registeredFlows)` exact rational components. Если
-хотя бы одно преобразованное значение нарушает persistent/transient budget,
-временная копия отбрасывается. Proactive, partial или повторный rebase запрещён,
-поскольку timing normalization не должен менять наблюдаемый момент
-`NUMERIC_LIMIT` между реализациями.
+A rebase MUST NOT be partial. It runs only under the canonical trigger in §3.2
+and within the same atomic state transition as the operation that caused it.
+Its worst-case time and temporary space are
+`O(queuedJobs + registeredFlows)` exact rational components. If any transformed
+value violates the persistent or transient budget, the temporary copy is
+discarded. Proactive, partial, or repeated rebasing is forbidden because the
+timing of normalization must not change the observable point at which
+`NUMERIC_LIMIT` occurs across implementations.
 
-### 3.4 Новый busy period
+### 3.4 New busy period
 
-**Проектное решение на основании допустимой нормализации Goyal96**, описанной
-в [Engineering decisions](THEORY.md#engineering-decisions-in-this-library).
-Когда после `cancel` или `complete` множество live jobs
-становится пустым, в той же atomic transition:
+**Design decision based on the normalization permitted by Goyal96**, described
+under [Engineering decisions](THEORY.md#engineering-decisions-in-this-library).
+When the set of live jobs becomes empty after `cancel` or `complete`, the same
+atomic transition performs:
 
 - `V := 0`;
-- `lastFinish := 0` для каждого registered flow;
-- registration records, numeric sequences и cumulative counters НЕ
-  сбрасываются.
+- `lastFinish := 0` for every registered flow;
+- registration records, numeric sequences, and cumulative counters are **not**
+  reset.
 
-Это устраняет перенос tag debt между busy periods и является выбранным
-разрешением plain SFQ(D), описанным в
+This removes tag debt across busy periods and is the selected resolution of
+plain SFQ(D) described under
 [Why the `(D)` matters](THEORY.md#why-the-d-matters).
 
-## 4. Абстрактное состояние
+## 4. Abstract state
 
-Scheduler state — кортеж:
+Scheduler state is the tuple:
 
 ```text
 Config            = (D, maxFlows, maxLiveJobs)
-ownerToken        = inert identity token этого instance
+ownerToken        = inert identity token of this instance
 V                 = virtual-time tag
-lastJobSequence   = последний выданный job long sequence, изначально 0
-lastFlowSequence  = последний выданный flow long sequence, изначально 0
+lastJobSequence   = last issued job long sequence, initially 0
+lastFlowSequence  = last issued flow long sequence, initially 0
 RegisteredById    = FlowId -> FlowHandle
 RegisteredFlows   = FlowHandle -> FlowState
 LiveById          = JobId -> JobHandle
 Queued            = JobHandle -> QueuedJob
 Running           = JobHandle -> RunningJob
-Priority          = total order queued jobs by (S, jobSequence)
+Priority          = total order of queued jobs by (S, jobSequence)
 Counters          = accepted, dispatched, cancelled, completed
 ```
 
-Initial state: оба sequence и все counters равны zero, `V=0`, все maps/sets
-пусты, owner token создан; configuration уже провалидирована.
+In the initial state, both sequences and all counters are zero, `V=0`, all maps
+and sets are empty, the owner token exists, and configuration has already been
+validated.
 
-`FlowHandle` и `JobHandle` — нормативно **инертные capabilities**. Каждый
-содержит только малый `ownerToken` и соответствующий непереиспользуемый
-`long sequence`. Handle НЕ МОЖЕТ содержать reference/backreference на
-scheduler, `FlowId`, `JobId`, payload, map, record либо иной caller domain
-object. Сам `ownerToken` — отдельный immutable identity marker без полей,
-ссылающихся на scheduler или его state. Scheduler и его handles могут
-ссылаться на marker, но marker ни на что из них не ссылается.
+`FlowHandle` and `JobHandle` are normatively **inert capabilities**. Each
+contains only a small `ownerToken` and the corresponding never-reused
+`long sequence`. A handle MUST NOT contain a reference or back-reference to the
+scheduler, `FlowId`, `JobId`, payload, map, record, or any other caller-domain
+object. The `ownerToken` itself is a separate immutable identity marker with no
+fields referring to the scheduler or its state. The scheduler and its handles
+may refer to the marker, but the marker refers to none of them.
 
-Handle другого instance отличается owner token. Закрытый/terminal handle
-остаётся безопасным inert value, но больше не разрешается ни в один live
-record. Returned `Dispatch` содержит payload/IDs для caller; это
-caller-owned result, а не содержимое handle или сохраняемый terminal record.
+A handle from another instance has a different owner token. A closed or
+terminal handle remains a safe inert value but no longer resolves to any live
+record. A returned `Dispatch` contains the payload and IDs for the caller; it is
+a caller-owned result, not handle content or a stored terminal record.
 
-Normative equality обоих handle types:
+Normative equality for both handle types is:
 
-- два handles равны только если имеют один и тот же runtime type, их
-  `ownerToken` — тот же object по identity (`==`) и sequence равен;
-- `hashCode` стабилен и выводится только из identity token и sequence;
-- `FlowHandle` никогда не равен `JobHandle`, даже при одинаковом числовом
+- two handles are equal only if they have the same runtime type, their
+  `ownerToken` is the same object by identity (`==`), and their sequences are
+  equal;
+- `hashCode` is stable and derived only from the identity token and sequence;
+- a `FlowHandle` is never equal to a `JobHandle`, even with the same numeric
   sequence;
-- handle types НЕ реализуют `Comparable` или `Serializable`;
-- public API НЕ раскрывает token или sequence accessors.
+- handle types MUST NOT implement `Comparable` or `Serializable`;
+- the public API MUST NOT expose token or sequence accessors.
 
-Таким образом callers могут безопасно использовать handle как opaque map key,
-но не могут выводить global order, переносить capability между process/JVM или
-конструировать его из числового ID.
+Callers can therefore safely use a handle as an opaque map key, but cannot
+derive a global order, transfer the capability between processes or JVMs, or
+construct it from a numeric ID.
 
 ```text
 FlowState = (flowHandle, flowId, weight, lastFinish,
@@ -306,51 +307,51 @@ QueuedJob = (jobHandle, jobId, flowHandle, payload,
 RunningJob = (jobHandle, jobId, flowHandle, cost)
 ```
 
-Production implementation МОЖЕТ хранить эквивалентное состояние другими
-структурами. Reference model ДОЛЖНА предпочесть прямое представление, а не
-оптимизацию.
+The production implementation MAY store equivalent state in other structures.
+The reference model MUST prefer a direct representation over optimization.
 
-### 4.1 Определения состояния flow
+### 4.1 Flow-state definitions
 
-- flow `active`, если `queuedCount + runningCount > 0`;
-- flow `backlogged`, если `queuedCount > 0`;
-- flow `inactive`, если он registered и оба count равны zero;
-- active non-backlogged flow имеет только running jobs.
+- a flow is `active` when `queuedCount + runningCount > 0`;
+- a flow is `backlogged` when `queuedCount > 0`;
+- a flow is `inactive` when it is registered and both counts are zero;
+- an active non-backlogged flow has only running jobs.
 
-Registration и activity ортогональны. Flow state и `lastFinish` сохраняются при
-active → inactive внутри непустого busy period. Вес неизменяем весь registration
-lifetime, включая inactive intervals. Смена веса разрешена только как
-успешный debt-safe `closeFlow`, затем новая `registerFlow` с новым FlowHandle.
+Registration and activity are orthogonal. Flow state and `lastFinish` persist
+across active → inactive transitions within a non-empty busy period. Weight is
+immutable for the full registration lifetime, including inactive intervals. A
+weight change is allowed only through a successful debt-safe `closeFlow`,
+followed by a new `registerFlow` with a new FlowHandle.
 
-### 4.2 Инварианты
+### 4.2 Invariants
 
-В каждом observable state:
+In every observable state:
 
-1. `Queued` и `Running` не пересекаются по handle.
-2. Каждый handle находится не более чем в одном lifecycle state.
-3. `LiveById` биективно соответствует `Queued union Running` по `JobId`.
-4. `RegisteredById` и `RegisteredFlows` биективны по `FlowId/FlowHandle`;
-   `|RegisteredFlows| <= maxFlows`.
-5. Каждый queued/running job ссылается ровно на один registered flow.
+1. `Queued` and `Running` do not overlap by handle.
+2. Every handle is in at most one lifecycle state.
+3. `LiveById` corresponds bijectively to `Queued union Running` by `JobId`.
+4. `RegisteredById` and `RegisteredFlows` are bijective by
+   `FlowId/FlowHandle`; `|RegisteredFlows| <= maxFlows`.
+5. Every queued or running job refers to exactly one registered flow.
 6. `|Queued| + |Running| <= maxLiveJobs`.
 7. `|Running| <= D`; `freeSlots = D - |Running|`.
-8. Flow counters равны числу соответствующих records; active/backlogged
-   являются только производными от counters.
-9. Для каждого queued job `S >= V`.
-10. `Priority` содержит ровно `Queued` и отсортирован по §6.
-11. `V`, queued tags и `lastFinish` всех registered flows каноничны, точны и
-    находятся в persistent numeric budget.
-12. Payload хранится только в `Queued`, но не в `Running`, handle или terminal
-    state.
-13. Cumulative lifecycle conservation выполняется математически точно:
-    `accepted = |Queued| + |Running| + cancelled + completed` и
+8. Flow counters equal the number of corresponding records; active and
+   backlogged are derived only from the counters.
+9. For every queued job, `S >= V`.
+10. `Priority` contains exactly `Queued` and is ordered as defined in §6.
+11. `V`, queued tags, and `lastFinish` for all registered flows are canonical,
+    exact, and within the persistent numeric budget.
+12. A payload is stored only in `Queued`, never in `Running`, a handle, or
+    terminal state.
+13. Cumulative lifecycle conservation holds with mathematical exactness:
+    `accepted = |Queued| + |Running| + cancelled + completed` and
     `dispatched = |Running| + completed`.
-14. Ни один counter не превышает `Long.MAX_VALUE`; проверки равенств/сумм НЕ
-    выполняются с overflowing fixed-width arithmetic.
+14. No counter exceeds `Long.MAX_VALUE`; equality and sum checks MUST NOT use
+    overflowing fixed-width arithmetic.
 
-## 5. Lifecycles и identity
+## 5. Lifecycles and identity
 
-Lifecycle регистрации flow:
+The flow-registration lifecycle is:
 
 ```text
 ABSENT --registerFlow/REGISTERED--> REGISTERED_INACTIVE
@@ -359,12 +360,12 @@ REGISTERED_ACTIVE --last terminal-> REGISTERED_INACTIVE
 REGISTERED_INACTIVE --closeFlow---> ABSENT
 ```
 
-`closeFlow` разрешён только для inactive flow с `lastFinish <= V`. При этом
-сохранённая identity и новая registration дали бы следующему job один и тот же
-start tag `V`, поэтому удаление не стирает действующий fairness debt. Условие
-может выполниться как после global idle reset, так и внутри busy period.
+`closeFlow` is allowed only for an inactive flow with `lastFinish <= V`. The
+preserved identity and a new registration would then give the next job the same
+start tag `V`, so removal does not erase outstanding fairness debt. The
+condition can become true after a global idle reset or within a busy period.
 
-Lifecycle одного JobHandle:
+The lifecycle of one JobHandle is:
 
 ```text
 ABSENT --enqueue/ACCEPTED--> QUEUED
@@ -373,55 +374,57 @@ QUEUED --cancel/CANCELLED--> ABSENT
 RUNNING --complete---------> ABSENT
 ```
 
-Других переходов нет. Dispatch и cancel необратимы. Running job
-non-preemptive с точки зрения scheduler; `cancel` его не отзывает.
+There are no other transitions. Dispatch and cancel are irreversible. A
+running job is non-preemptive from the scheduler's perspective; `cancel` does
+not recall it.
 
 ### 5.1 Bounded duplicate semantics
 
-**Проектное решение.** Terminal tombstones не хранятся. Поэтому после удаления
-handle библиотека намеренно не различает:
+**Design decision.** Terminal tombstones are not stored. After a handle is
+removed, the library intentionally does not distinguish among:
 
-- никогда не существовавший handle;
-- уже cancelled handle;
-- уже completed handle;
-- повторный вызов terminal operation.
+- a handle that never existed;
+- an already cancelled handle;
+- an already completed handle;
+- a repeated terminal-operation call.
 
-Все они дают `NOT_LIVE`. Это не временный cache и результат не зависит от
-давности вызова.
+All return `NOT_LIVE`. This is not a temporary cache, and the result does not
+depend on the age of the call.
 
-Поэтому один поздний `cancel/NOT_LIVE` намеренно НЕ сообщает terminal cause:
-он не отличает completed-after-dispatch job от ранее cancelled, stale, foreign
-или никогда не существовавшего handle. Победитель cancel-versus-dispatch
-определяется combined linearized history: наличием handle в dispatch result и
-результатом cancel. Пока selected job остаётся running, немедленный cancel даёт
-`TOO_LATE_ALREADY_DISPATCHED`; после completion эта диагностическая информация
-удалена вместе с bounded terminal metadata.
+A late `cancel/NOT_LIVE` therefore intentionally does **not** identify the
+terminal cause: it cannot distinguish a job completed after dispatch from a
+previously cancelled, stale, foreign, or never-existing handle. The winner of
+cancel versus dispatch is determined from the combined linearized history: the
+presence of the handle in a dispatch result and the cancel result. While a
+selected job remains running, an immediate cancel returns
+`TOO_LATE_ALREADY_DISPATCHED`; after completion, that diagnostic information is
+removed with the bounded terminal metadata.
 
-Caller `JobId` уникален только среди live jobs. Пока ID live, повторный
-`enqueue` даёт `DUPLICATE_LIVE_ID`. После terminal transition тот же ID может
-быть принят как новая incarnation и получит новый handle. Все lifecycle
-operations принимают handle, а не только `JobId`; поэтому запоздалый вызов со
-старым handle не может затронуть новую incarnation (нет ABA).
+A caller `JobId` is unique only among live jobs. While the ID is live, another
+`enqueue` returns `DUPLICATE_LIVE_ID`. After a terminal transition, the same ID
+may be accepted as a new incarnation and receives a new handle. All lifecycle
+operations accept a handle, not merely a `JobId`; a delayed call with an old
+handle therefore cannot affect the new incarnation (no ABA).
 
-Следовательно, повтор `enqueue` после terminal transition НЕ является
-идемпотентным retry: это новый job. Если caller требует бессрочную
-идемпотентность business request, он хранит её состояние вне scheduler.
+Consequently, repeating `enqueue` after a terminal transition is **not** an
+idempotent retry: it is a new job. If a caller requires indefinite business-
+request idempotency, it stores that state outside the scheduler.
 
-Такая семантика обеспечивает at-most-once без unbounded completed/cancelled
-metadata. API НЕ ДОЛЖЕН обещать отдельный `ALREADY_COMPLETED` или
-`ALREADY_CANCELLED`, поскольку без retention доказать его невозможно.
+These semantics provide at-most-once behavior without unbounded completed or
+cancelled metadata. The API MUST NOT promise a distinct `ALREADY_COMPLETED` or
+`ALREADY_CANCELLED` result because it cannot prove one without retention.
 
-Caller `FlowId` уникален среди registered flows. Пока registration существует,
-повторный `registerFlow` даёт `DUPLICATE_REGISTERED_ID`. После безопасного
-`closeFlow` тот же ID может получить новую registration и новый FlowHandle.
-Stale/foreign FlowHandle даёт `FLOW_NOT_REGISTERED` и не может адресовать новую
-registration того же ID.
+A caller `FlowId` is unique among registered flows. While a registration
+exists, another `registerFlow` returns `DUPLICATE_REGISTERED_ID`. After a safe
+`closeFlow`, the same ID may receive a new registration and a new FlowHandle. A
+stale or foreign FlowHandle returns `FLOW_NOT_REGISTERED` and cannot address a
+new registration of the same ID.
 
-## 6. Tags, virtual time и total order
+## 6. Tags, virtual time, and total order
 
 ### 6.1 Enqueue tags
 
-Для принятого job `j` flow `f`:
+For an accepted job `j` of flow `f`:
 
 ```text
 previousFinish = RegisteredFlows[f].lastFinish
@@ -429,206 +432,211 @@ S(j) = max(V, previousFinish)
 F(j) = S(j) + cost(j) / RegisteredFlows[f].weight
 ```
 
-После принятия `RegisteredFlows[f].lastFinish := F(j)`. Enqueue не создаёт
-registration и не принимает weight. Для dormant registered flow используется
-сохранённый `lastFinish`, а не zero; поэтому inactive interval внутри busy
-period не сбрасывает fairness history.
+After acceptance, `RegisteredFlows[f].lastFinish := F(j)`. Enqueue does not
+create a registration and does not accept a weight. A dormant registered flow
+uses its stored `lastFinish`, not zero; an inactive interval within a busy
+period therefore does not reset fairness history.
 
-Tags фиксируются при enqueue. Позднейшая cancellation другого queued job НЕ
-пересчитывает tags оставшихся jobs и не откатывает `lastFinish`.
+Tags are fixed at enqueue. Later cancellation of another queued job MUST NOT
+recalculate the tags of remaining jobs or roll back `lastFinish`.
 
-Это последнее правило — **проектное cancellation решение**, отсутствующее в
-Jin04. Оно предотвращает ретроактивное изменение уже принятых scheduling
-decisions. Цена: cancelled supplied cost остаётся virtual charge до конца
-текущего глобального busy period; опубликованный completed-work fairness bound
-не заявляется для интервалов с cancellation.
+This last rule is a **cancellation design decision** absent from Jin04. It
+prevents retroactive changes to accepted scheduling decisions. Its cost is that
+a cancelled supplied cost remains a virtual charge until the end of the current
+global busy period; the published completed-work fairness bound is not claimed
+for intervals containing cancellation.
 
 ### 6.2 Deterministic tie-breaking
 
-**Проектное решение.** Priority key queued job:
+**Design decision.** The priority key of a queued job is:
 
 ```text
 (S ascending, jobSequence ascending)
 ```
 
-`jobSequence` присваивается в linearization order успешных enqueue и уникален.
-Это полный детерминированный порядок. Jin04 разрешает arbitrary ties; данный
-порядок выбирает один из разрешённых вариантов.
+`jobSequence` is assigned in the linearization order of successful enqueue
+calls and is unique. This creates a complete deterministic order. Jin04 permits
+arbitrary tie-breaking; this rule selects one permitted ordering.
 
-### 6.3 Dispatch и virtual time
+### 6.3 Dispatch and virtual time
 
-Каждый выбранный job — минимальный в текущем `Priority`. Непосредственно перед
-его переходом в running:
+Each selected job is the minimum in the current `Priority`. Immediately before
+it transitions to running:
 
 ```text
 V := S(selected)
 ```
 
-При batch dispatch jobs выбираются последовательно; обновлённое `V` относится
-к следующему выбору. Поскольку queued order не убывает по `S`, `V` не
-убывает внутри busy period и может остаться равным прежнему.
+During batch dispatch, jobs are selected sequentially; the updated `V` applies
+to the next selection. Because queued order is non-decreasing by `S`, `V` does
+not decrease within a busy period and may remain unchanged.
 
-`complete` само по себе не продвигает `V`; оно лишь освобождает issue slot.
-`V` меняется при dispatch, exact rebase или reset на границе busy period.
+`complete` does not itself advance `V`; it only frees an issue slot. `V`
+changes on dispatch, exact rebase, or reset at a busy-period boundary.
 
-## 7. Операции и результаты
+## 7. Operations and results
 
-Все проверки, расчёты и изменения одной операции логически атомарны.
-Invalid arguments отвергаются до state mutation. Конкретный Java API МОЖЕТ
-представить programmer errors исключением, а перечисленные operational
-outcomes — value result, но это различие ДОЛЖНО быть единообразно
-документировано в JavaDoc.
+All checks, calculations, and changes within one operation are logically
+atomic. Invalid arguments are rejected before state mutation. A concrete Java
+API MAY represent programmer errors with exceptions and the listed operational
+outcomes with result values, but JavaDoc MUST document that distinction
+consistently.
 
 ### 7.1 `registerFlow(flowId, weight)`
 
-Порядок:
+Order of processing:
 
-1. Проверить non-null `flowId` и `weight` в `1..Long.MAX_VALUE`.
-2. Если `flowId` есть в `RegisteredById`, вернуть
+1. Validate a non-null `flowId` and `weight` in `1..Long.MAX_VALUE`.
+2. If `flowId` is in `RegisteredById`, return
    `DUPLICATE_REGISTERED_ID`.
-3. Если registered count равен `maxFlows`, вернуть `FLOW_LIMIT`.
-4. Если `lastFlowSequence == Long.MAX_VALUE`, вернуть
+3. If the registered count equals `maxFlows`, return `FLOW_LIMIT`.
+4. If `lastFlowSequence == Long.MAX_VALUE`, return
    `FLOW_SEQUENCE_EXHAUSTED`.
-5. Создать inert `FlowHandle(ownerToken,lastFlowSequence+1)` и FlowState с
-   `lastFinish=0`, zero counts и fixed weight; вставить оба registration
-   indexes, обновить sequence.
-6. Вернуть `REGISTERED(flowHandle)`.
+5. Create an inert `FlowHandle(ownerToken,lastFlowSequence+1)` and FlowState
+   with `lastFinish=0`, zero counts, and the fixed weight; insert both
+   registration indexes and update the sequence.
+6. Return `REGISTERED(flowHandle)`.
 
-Registration во время непустого busy period разрешена: до первого enqueue она
-не влияет на scheduling. Любой rejection не меняет state и не расходует
-sequence.
+Registration during a non-empty busy period is allowed: it does not affect
+scheduling before the first enqueue. A rejection leaves state unchanged and
+does not consume a sequence.
 
 ### 7.2 `closeFlow(flowHandle)`
 
-Null handle — invalid argument. Для foreign, stale или уже закрытого handle
-вернуть `FLOW_NOT_REGISTERED`.
+A null handle is an invalid argument. For a foreign, stale, or already closed
+handle, return `FLOW_NOT_REGISTERED`.
 
-- Если registered flow active, вернуть `FLOW_ACTIVE`.
-- Если flow inactive, но `lastFinish > V`, вернуть
+- If the registered flow is active, return `FLOW_ACTIVE`.
+- If the flow is inactive but `lastFinish > V`, return
   `FAIRNESS_DEBT_ACTIVE`.
-- Если flow inactive и `lastFinish <= V`, атомарно удалить его из
-  `RegisteredFlows` и `RegisteredById`, освободить internal `FlowId` reference
-  и вернуть `CLOSED`.
+- If the flow is inactive and `lastFinish <= V`, atomically remove it from
+  `RegisteredFlows` and `RegisteredById`, release the internal `FlowId`
+  reference, and return `CLOSED`.
 
-Условие закрытия fairness-neutral, поскольку при сохранении старой identity
-следующий enqueue получил бы `S=max(V,lastFinish)=V`, а новая registration с
-`lastFinish=0` также получит `S=V`. Global idle reset §3.4 является достаточным,
-но не обязательным способом достичь этого условия. Успех разрешает повторную
-регистрацию того же `FlowId`, но новый FlowHandle получает новый sequence.
+The closing condition is fairness-neutral: with the old identity preserved,
+the next enqueue would receive `S=max(V,lastFinish)=V`; a new registration with
+`lastFinish=0` also receives `S=V`. The global idle reset in §3.4 is a
+sufficient but not necessary way to reach the condition. Success permits the
+same `FlowId` to be registered again, but the new FlowHandle receives a new
+sequence.
 
 ### 7.3 `enqueue(flowHandle, jobId, payload, cost)`
 
-Порядок:
+Order of processing:
 
-1. Проверить non-null handle/ID/payload и `cost` range.
-2. Если FlowHandle foreign, stale или closed, вернуть `FLOW_NOT_REGISTERED`.
-3. Если `jobId` есть в `LiveById`, вернуть `DUPLICATE_LIVE_ID`.
-4. Если live count равен `maxLiveJobs`, вернуть `LIVE_LIMIT`.
-5. Если job sequence исчерпан, вернуть `SEQUENCE_EXHAUSTED`.
-6. Используя fixed registered weight/lastFinish, вычислить точные `S`, `F`; при
-   необходимости транзакционно применить §3.3 ко всей требуемой state copy.
-   Если budget всё равно нарушен, вернуть `NUMERIC_LIMIT`.
-7. Создать inert JobHandle/queued record, вставить его во все job indexes,
-   обновить registered flow counts/lastFinish, counters и job sequence.
-8. Вернуть `ACCEPTED(jobHandle)`.
+1. Validate a non-null handle, ID, and payload, and validate the `cost` range.
+2. If the FlowHandle is foreign, stale, or closed, return
+   `FLOW_NOT_REGISTERED`.
+3. If `jobId` is in `LiveById`, return `DUPLICATE_LIVE_ID`.
+4. If the live count equals `maxLiveJobs`, return `LIVE_LIMIT`.
+5. If the job sequence is exhausted, return `SEQUENCE_EXHAUSTED`.
+6. Using the fixed registered weight and `lastFinish`, calculate exact `S` and
+   `F`; when required, apply §3.3 transactionally to the complete necessary
+   state copy. If the budget remains violated, return `NUMERIC_LIMIT`.
+7. Create the inert JobHandle and queued record, insert it into all job indexes,
+   and update the registered flow counts, `lastFinish`, counters, and job
+   sequence.
+8. Return `ACCEPTED(jobHandle)`.
 
-Любой результат кроме `ACCEPTED` не меняет observable state и не расходует
-sequence.
+Every result other than `ACCEPTED` leaves observable state unchanged and does
+not consume a sequence.
 
 ### 7.4 `cancel(handle)`
 
-Null handle — invalid argument. Opaque handle другого scheduler instance
-трактуется как `NOT_LIVE`.
+A null handle is an invalid argument. An opaque handle from another scheduler
+instance is treated as `NOT_LIVE`.
 
-- Если handle в `Queued`, атомарно удалить job из очереди, priority и
-  `LiveById`, уменьшить flow count, увеличить `cancelled`, освободить payload и
-  вернуть `CANCELLED`.
-- Если handle в `Running`, ничего не менять и вернуть
+- If the handle is in `Queued`, atomically remove the job from the queue,
+  priority, and `LiveById`; decrement the flow count, increment `cancelled`,
+  release the payload, and return `CANCELLED`.
+- If the handle is in `Running`, change nothing and return
   `TOO_LATE_ALREADY_DISPATCHED`.
-- Иначе вернуть `NOT_LIVE`.
+- Otherwise, return `NOT_LIVE`.
 
-JavaDoc ДОЛЖЕН явно говорить, что `NOT_LIVE` подтверждает только отсутствие
-live job в LP и сам по себе не доказывает, какая terminal operation произошла.
-Caller сопоставляет его с ранее полученными dispatch/cancel/completion results,
-если ему нужна причина.
+JavaDoc MUST state explicitly that `NOT_LIVE` proves only the absence of a live
+job at the linearization point and does not by itself prove which terminal
+operation occurred. If the caller needs the cause, it correlates this result
+with earlier dispatch, cancel, and completion results.
 
-Registered flow state при deactivation сохраняется. Если удалён последний live
-job scheduler, выполняется reset §3.4 для всех registrations в той же
-transition. Cancellation не возвращает capacity: queued job её не занимал.
+Registered flow state persists on deactivation. If the removed job was the
+scheduler's last live job, the same transition performs the §3.4 reset for all
+registrations. Cancellation does not return capacity because a queued job did
+not occupy any.
 
 ### 7.5 `dispatchUpTo(k)` / `dispatch(k)`
 
-`k` — целое `0..D`; отрицательное или `k>D` — invalid argument. `k=0`
-возвращает пустой список без mutation.
+`k` is an integer in `0..D`; a negative value or `k>D` is an invalid argument.
+`k=0` returns an empty list without mutation.
 
-Public Java API использует action-oriented имя `dispatchUpTo`, потому что
-непустой вызов меняет lifecycle jobs. Имена, похожие на capacity notification,
-не соответствуют этой семантике.
+The public Java API uses the action-oriented name `dispatchUpTo` because a
+non-empty call changes job lifecycles. Names resembling capacity notifications
+do not match these semantics.
 
-Число выбираемых jobs:
+The number of selected jobs is:
 
 ```text
 m = min(k, D - |Running|, |Queued|).
 ```
 
-Для `i=1..m` операция последовательно:
+For `i=1..m`, the operation sequentially:
 
-1. берёт minimum `Priority`;
-2. устанавливает `V := S(job)`;
-3. удаляет queued record и payload из внутренних queued structures;
-4. создаёт `RunningJob`, сохраняя handle, IDs, flow и cost, но не payload;
-5. обновляет flow counts и `dispatched`;
-6. добавляет `Dispatch(handle, jobId, flowId, payload, cost)` в result list.
+1. takes the minimum of `Priority`;
+2. sets `V := S(job)`;
+3. removes the queued record and payload from internal queued structures;
+4. creates a `RunningJob`, retaining the handle, IDs, flow, and cost, but not
+   the payload;
+5. updates flow counts and `dispatched`;
+6. appends `Dispatch(handle, jobId, flowId, payload, cost)` to the result list.
 
-Result list упорядочен фактическим dispatch order. Весь batch — одна atomic
-operation: другой вызов не может вклиниться между его элементами. Если `m=0`,
-возвращается пустой список.
+The result list is ordered by actual dispatch order. The entire batch is one
+atomic operation: no other call can interleave between its elements. If `m=0`,
+the operation returns an empty list.
 
-Каждый `Dispatch` — immutable detached carrier полей
-`(jobHandle, jobId, flowId, payload, cost)`, но намеренно сохраняет обычную
-Object identity equality/hashCode и НЕ является value record: для payload не
-задан `equals/hashCode` precondition, поэтому structural equality создала бы
-ложный API contract. Returned list также immutable/unmodifiable и detached от
-внутренних collections; scheduler никогда не изменяет ни carrier, ни список
-после возврата.
+Each `Dispatch` is an immutable detached carrier for
+`(jobHandle, jobId, flowId, payload, cost)`, but intentionally retains ordinary
+Object identity equality and hash code and is **not** a value record: payload
+has no `equals/hashCode` precondition, so structural equality would create a
+false API contract. The returned list is also immutable or unmodifiable and
+detached from internal collections; the scheduler never changes the carrier or
+list after returning it.
 
-Differential comparison сравнивает поля carrier явно: соответствующие opaque
-handles через logical mapping, IDs по их contract, `cost` численно, а payload
-только по object identity (`==`) для одного и того же input trace. `Dispatch`
-objects или result lists не сравниваются через value `equals`.
+Differential comparison checks carrier fields explicitly: corresponding opaque
+handles through a logical mapping, IDs according to their contract, `cost`
+numerically, and payload only by object identity (`==`) for the same input
+trace. `Dispatch` objects and result lists are not compared through value
+`equals`.
 
-Каждый результат немедленно и необратимо расходует один issue slot до
-успешного `complete`. Повторный `dispatchUpTo` не может выдать тот же slot
-или job. Caller ДОЛЖЕН вызывать операцию только будучи готовым принять весь
-возвращаемый batch. Сбой caller/executor после возврата не откатывает dispatch;
-caller всё равно обязан завершить handle через `complete`. Requeue — новая
-incarnation через новый enqueue и не входит в эту операцию.
+Each result immediately and irreversibly consumes one issue slot until a
+successful `complete`. A repeated `dispatchUpTo` cannot issue the same slot or
+job. The caller MUST invoke the operation only when ready to accept the entire
+returned batch. Caller or executor failure after return does not roll back the
+dispatch; the caller must still finish the handle through `complete`. Requeue
+is a new incarnation through a new enqueue and is not part of this operation.
 
 ### 7.6 `complete(handle)`
 
-Null handle — invalid argument. Opaque handle другого scheduler instance
-трактуется как `NOT_LIVE`.
+A null handle is an invalid argument. An opaque handle from another scheduler
+instance is treated as `NOT_LIVE`.
 
-- Если handle в `Running`, атомарно удалить running record и `LiveById`,
-  уменьшить flow count, увеличить `completed`, освободить один internal issue
-  slot и вернуть `COMPLETED`.
-- Если handle в `Queued`, ничего не менять и вернуть `NOT_DISPATCHED`.
-- Иначе вернуть `NOT_LIVE`.
+- If the handle is in `Running`, atomically remove the running record and
+  `LiveById`, decrement the flow count, increment `completed`, release one
+  internal issue slot, and return `COMPLETED`.
+- If the handle is in `Queued`, change nothing and return `NOT_DISPATCHED`.
+- Otherwise, return `NOT_LIVE`.
 
-Registered flow state при deactivation сохраняется. При удалении последнего
-live job выполняется reset §3.4 для всех registrations. Completion НЕ
-dispatch-ит следующий job автоматически; caller вызывает `dispatchUpTo`
-отдельно.
+Registered flow state persists on deactivation. Removing the last live job
+performs the §3.4 reset for all registrations. Completion does **not** dispatch
+the next job automatically; the caller invokes `dispatchUpTo` separately.
 
-Pull-based integration обычно реализует внешний pump. Чтобы не оставить
-доступную работу или ресурс без следующей попытки dispatch, caller вызывает
-pump как минимум после каждого успешного enqueue, каждого completion и каждого
-внешнего появления capacity. Scheduler по-прежнему не вызывает callback и
-returned `Dispatch` не содержит ссылки обратно на scheduler.
+Pull-based integration normally implements an external pump. To avoid leaving
+available work or a resource without another dispatch attempt, the caller runs
+the pump at least after every successful enqueue, every completion, and every
+external capacity event. The scheduler still invokes no callback, and a
+returned `Dispatch` contains no reference back to the scheduler.
 
 ### 7.7 `snapshot()`
 
-Snapshot содержит как минимум:
+A snapshot contains at least:
 
 ```text
 D, maxFlows, maxLiveJobs,
@@ -638,328 +646,334 @@ activeFlows, backloggedFlows,
 acceptedTotal, dispatchedTotal, cancelledTotal, completedTotal
 ```
 
-Snapshot не содержит payload, identifiers, handles или internal tags. Он —
-точный immutable atomic snapshot одного linearization point, а не weakly
-consistent iteration. Cumulative counters не включают failed/no-op outcomes.
+A snapshot contains no payload, identifiers, handles, or internal tags. It is
+an exact immutable atomic snapshot from one linearization point, not a weakly
+consistent iteration. Cumulative counters exclude failed and no-op outcomes.
 
 ### 7.8 `snapshot(flowHandle)`
 
-Null handle — invalid argument. Для exact capability текущей регистрации
-операция возвращает immutable `FlowSnapshot`:
+A null handle is an invalid argument. For the exact capability of a current
+registration, the operation returns an immutable `FlowSnapshot`:
 
 ```text
 queuedJobs, runningJobs,
 acceptedCost, dispatchedCost, cancelledCost
 ```
 
-Job counts относятся к текущему состоянию. Cost totals — точные неотрицательные
-целые суммы supplied cost за lifetime этой регистрации:
+Job counts describe current state. Cost totals are exact non-negative integer
+sums of supplied cost over the lifetime of this registration:
 
-- `acceptedCost` увеличивается только успешным enqueue;
-- `dispatchedCost` увеличивается для каждого job в успешном dispatch batch;
-- `cancelledCost` увеличивается только успешным queued cancel;
-- текущий `queuedCost = acceptedCost - dispatchedCost - cancelledCost`.
+- `acceptedCost` increases only on successful enqueue;
+- `dispatchedCost` increases for each job in a successful dispatch batch;
+- `cancelledCost` increases only on successful queued cancel;
+- current `queuedCost = acceptedCost - dispatchedCost - cancelledCost`.
 
-Completion не меняет cost totals: `dispatchedCost` включает running и completed
-jobs. Failed/no-op outcomes не меняют snapshot. Cost totals НЕ переполняются:
-они представлены exact integers и ограничены глобальным never-reused job
-sequence, поэтому каждое значение не превышает
+Completion does not change cost totals: `dispatchedCost` includes running and
+completed jobs. Failed and no-op outcomes do not change the snapshot. Cost
+totals do **not** overflow: exact integers represent them, and the global
+never-reused job sequence bounds each value by
 `Long.MAX_VALUE * Long.MAX_VALUE`.
 
-Для foreign, stale либо closed capability операция возвращает empty. Snapshot
-не содержит FlowId, handle, payload, weight, internal tags или clock-derived
-age. Scheduler не владеет clock и не вызывает пользовательские metrics
-callbacks. Текущий weight известен caller из успешной регистрации; enqueue
-timestamp/oldest age при необходимости остаётся в caller payload или внешнем
-observer.
+For a foreign, stale, or closed capability, the operation returns empty. The
+snapshot contains no FlowId, handle, payload, weight, internal tags, or
+clock-derived age. The scheduler owns no clock and invokes no user metrics
+callbacks. The caller knows the current weight from successful registration;
+when needed, enqueue time or oldest age remains in the caller payload or an
+external observer.
 
-## 8. Linearization points и races
+## 8. Linearization points and races
 
-Public operations полностью thread-safe и линейризуемы. Конкретный lock/CAS
-не является контрактом; linearization point (LP) — абстрактный момент atomic
-commit/observation:
+Public operations are fully thread-safe and linearizable. A particular lock or
+CAS is not contractual; a linearization point (LP) is the abstract instant of
+atomic commit or observation:
 
-| Операция и результат | Linearization point |
+| Operation and result | Linearization point |
 |---|---|
-| `registerFlow/REGISTERED` | atomic commit обоих registration indexes и flow sequence |
-| `registerFlow/*rejection*` | atomic observation первой применимой registration проверки; state не меняется |
-| `closeFlow/CLOSED` | atomic removal из `RegisteredFlows` и `RegisteredById` |
-| `closeFlow/FLOW_ACTIVE` | atomic observation ненулевого flow job count |
-| `closeFlow/FAIRNESS_DEBT_ACTIVE` | atomic observation inactive flow с `lastFinish > V` |
-| `closeFlow/FLOW_NOT_REGISTERED` | atomic observation отсутствия exact capability в registry |
-| `enqueue/ACCEPTED` | atomic commit вставки job, flow/tag updates, sequence и counter |
-| `enqueue/*rejection*` | atomic observation, на котором выполнена первая применимая проверка результата; state не меняется |
-| `cancel/CANCELLED` | atomic removal из `Queued` и `LiveById`, включая flow/reset/counter updates |
-| `cancel/TOO_LATE_ALREADY_DISPATCHED` | atomic observation handle в `Running` |
-| `cancel/NOT_LIVE` | atomic observation отсутствия handle в `Queued` и `Running` |
-| `dispatch/non-empty` | единый atomic commit всех `m` transitions и последнего значения `V` |
-| `dispatch/empty` | atomic observation `k=0` либо отсутствия одновременно slot и/или queued job |
-| `complete/COMPLETED` | atomic removal из `Running` и `LiveById`, включая slot/flow/reset/counter updates |
-| `complete/NOT_DISPATCHED` | atomic observation handle в `Queued` |
-| `complete/NOT_LIVE` | atomic observation отсутствия handle в `Queued` и `Running` |
-| `snapshot` | atomic capture всех перечисленных полей |
-| `snapshot(flowHandle)` | atomic lookup регистрации и capture всех flow fields либо observation её отсутствия |
+| `registerFlow/REGISTERED` | Atomic commit of both registration indexes and the flow sequence |
+| `registerFlow/*rejection*` | Atomic observation of the first applicable registration check; state is unchanged |
+| `closeFlow/CLOSED` | Atomic removal from `RegisteredFlows` and `RegisteredById` |
+| `closeFlow/FLOW_ACTIVE` | Atomic observation of a non-zero flow job count |
+| `closeFlow/FAIRNESS_DEBT_ACTIVE` | Atomic observation of an inactive flow with `lastFinish > V` |
+| `closeFlow/FLOW_NOT_REGISTERED` | Atomic observation that the exact capability is absent from the registry |
+| `enqueue/ACCEPTED` | Atomic commit of job insertion, flow and tag updates, sequence, and counter |
+| `enqueue/*rejection*` | Atomic observation at which the first applicable result check holds; state is unchanged |
+| `cancel/CANCELLED` | Atomic removal from `Queued` and `LiveById`, including flow, reset, and counter updates |
+| `cancel/TOO_LATE_ALREADY_DISPATCHED` | Atomic observation of the handle in `Running` |
+| `cancel/NOT_LIVE` | Atomic observation that the handle is absent from `Queued` and `Running` |
+| `dispatch/non-empty` | One atomic commit of all `m` transitions and the final value of `V` |
+| `dispatch/empty` | Atomic observation of `k=0`, or the simultaneous absence of a slot and/or queued job |
+| `complete/COMPLETED` | Atomic removal from `Running` and `LiveById`, including slot, flow, reset, and counter updates |
+| `complete/NOT_DISPATCHED` | Atomic observation of the handle in `Queued` |
+| `complete/NOT_LIVE` | Atomic observation that the handle is absent from `Queued` and `Running` |
+| `snapshot` | Atomic capture of all listed fields |
+| `snapshot(flowHandle)` | Atomic registration lookup and capture of all flow fields, or observation of its absence |
 
-Rebase, busy-period reset и payload release являются частью LP вызвавшей их
-операции, а не отдельными public events.
+Rebase, busy-period reset, and payload release are part of the LP of the
+operation that caused them, not separate public events.
 
-### 8.1 Обязательные race outcomes
+### 8.1 Required race outcomes
 
-- `cancel` против batch `dispatch`: если cancel LP раньше batch LP, cancel
-  возвращает `CANCELLED`, а handle отсутствует в dispatch result. Если batch LP
-  раньше **и этот handle выбран**, handle возвращён ровно один раз, а cancel
-  даёт `TOO_LATE_ALREADY_DISPATCHED` либо поздний `NOT_LIVE` после completion.
-  Если более ранний batch выбрал только другие jobs и оставил этот handle в
-  `Queued`, последующий cancel МОЖЕТ вернуть `CANCELLED`. Сам факт более раннего
-  dispatch LP не блокирует cancellation невыбранного job.
-- Два `dispatch`: batches полностью упорядочены по LP; capacity и jobs между
-  ними не дублируются.
-- Два `complete`: ровно один может вернуть `COMPLETED`; остальные возвращают
+- `cancel` versus batch `dispatch`: if the cancel LP precedes the batch LP,
+  cancel returns `CANCELLED` and the handle is absent from the dispatch result.
+  If the batch LP precedes it **and this handle is selected**, the handle is
+  returned exactly once and cancel returns `TOO_LATE_ALREADY_DISPATCHED`, or a
+  late `NOT_LIVE` after completion. If an earlier batch selected only other
+  jobs and left this handle in `Queued`, a later cancel MAY return `CANCELLED`.
+  The mere fact of an earlier dispatch LP does not block cancellation of an
+  unselected job.
+- Two `dispatch` calls: batches are totally ordered by LP; capacity and jobs are
+  not duplicated between them.
+- Two `complete` calls: exactly one may return `COMPLETED`; the others return
   `NOT_LIVE`.
-- Два `cancel`: ровно один может вернуть `CANCELLED`; остальные возвращают
+- Two `cancel` calls: exactly one may return `CANCELLED`; the others return
   `NOT_LIVE`.
-- `complete` против `cancel` queued job: cancel может вернуть `CANCELLED`, а
-  completion — `NOT_DISPATCHED` до него или `NOT_LIVE` после него. Completion
-  queued job успешным быть не может.
-- `enqueue` одинакового live `JobId`: ровно один может получить `ACCEPTED`;
-  остальные видят `DUPLICATE_LIVE_ID`, пока первая incarnation live.
-- `completion + dispatch`: если completion LP раньше, освободившийся slot
-  доступен batch; иначе dispatch его не использует и caller должен повторить
-  вызов.
-- `closeFlow + enqueue` одного FlowHandle: если `enqueue/ACCEPTED` LP раньше,
-  close видит active flow и возвращает `FLOW_ACTIVE`; если `closeFlow/CLOSED`
-  LP раньше, enqueue возвращает `FLOW_NOT_REGISTERED`. Rejected enqueue
-  (`DUPLICATE_LIVE_ID`, `LIVE_LIMIT`, `SEQUENCE_EXHAUSTED`, `NUMERIC_LIMIT` или
-  иной rejection) — atomic no-op: если его LP раньше close, close вычисляет
-  `CLOSED`, `FAIRNESS_DEBT_ACTIVE` или `FLOW_ACTIVE` только по неизменённому
-  предшествующему state. Job не может ссылаться на удалённый flow.
-- `closeFlow` inactive flow против последнего completion/cancel другого flow:
-  если до terminal LP `lastFinish > V`, close возвращает
-  `FAIRNESS_DEBT_ACTIVE`; terminal LP сначала выполняет global reset, после
-  чего close может вернуть `CLOSED`. Если debt уже погашен, close может вернуть
-  `CLOSED` и до terminal LP.
-- Concurrent registrations при `maxFlows` не могут вместе превысить limit;
-  LP order даёт лишнему вызову `FLOW_LIMIT`. Register того же `FlowId` против
-  close старой registration даёт либо `DUPLICATE_REGISTERED_ID`, либо новый
-  distinct FlowHandle после `CLOSED`.
-- `closeFlow` против enqueue, требующего rebase: rebase существует только как
-  часть `enqueue/ACCEPTED` LP. Enqueue/rebase-first активирует flow, после чего
-  close возвращает `FLOW_ACTIVE`. Close-first возвращает `CLOSED`, если
-  `lastFinish <= V`, и последующий enqueue даёт `FLOW_NOT_REGISTERED`; при
-  `lastFinish > V` close возвращает `FAIRNESS_DEBT_ACTIVE`, сохраняет
-  registration, и enqueue всё ещё может атомарно выполнить rebase.
-  `enqueue/NUMERIC_LIMIT` отбрасывает всю temporary copy, поэтому последующий
-  close решается по неизменённому сравнению `lastFinish` с `V`. Rebase другого
-  flow преобразует оба значения общей нормализацией §3.3 и сохраняет истинность
-  debt-safe условия.
+- `complete` versus `cancel` of a queued job: cancel may return `CANCELLED`, and
+  completion returns `NOT_DISPATCHED` before it or `NOT_LIVE` after it.
+  Completion of a queued job can never succeed.
+- `enqueue` of the same live `JobId`: exactly one may receive `ACCEPTED`; the
+  others see `DUPLICATE_LIVE_ID` while the first incarnation remains live.
+- `completion + dispatch`: if the completion LP comes first, the freed slot is
+  available to the batch; otherwise dispatch does not use it and the caller
+  must call again.
+- `closeFlow + enqueue` for one FlowHandle: if the `enqueue/ACCEPTED` LP comes
+  first, close observes an active flow and returns `FLOW_ACTIVE`; if the
+  `closeFlow/CLOSED` LP comes first, enqueue returns `FLOW_NOT_REGISTERED`. A
+  rejected enqueue (`DUPLICATE_LIVE_ID`, `LIVE_LIMIT`, `SEQUENCE_EXHAUSTED`,
+  `NUMERIC_LIMIT`, or another rejection) is an atomic no-op: if its LP comes
+  before close, close computes `CLOSED`, `FAIRNESS_DEBT_ACTIVE`, or
+  `FLOW_ACTIVE` from the unchanged preceding state. A job cannot refer to a
+  removed flow.
+- `closeFlow` of an inactive flow versus the last completion or cancel of
+  another flow: if `lastFinish > V` before the terminal LP, close returns
+  `FAIRNESS_DEBT_ACTIVE`; if the terminal LP comes first, it performs the global
+  reset and close may then return `CLOSED`. If debt is already repaid, close may
+  return `CLOSED` before the terminal LP.
+- Concurrent registrations at `maxFlows` cannot jointly exceed the limit; LP
+  order gives the excess call `FLOW_LIMIT`. Registering the same `FlowId`
+  against closing the old registration yields either
+  `DUPLICATE_REGISTERED_ID` or a new distinct FlowHandle after `CLOSED`.
+- `closeFlow` versus an enqueue requiring rebase: rebase exists only as part of
+  the `enqueue/ACCEPTED` LP. Enqueue and rebase first activate the flow, after
+  which close returns `FLOW_ACTIVE`. Close first returns `CLOSED` when
+  `lastFinish <= V`, and a later enqueue returns `FLOW_NOT_REGISTERED`; when
+  `lastFinish > V`, close returns `FAIRNESS_DEBT_ACTIVE`, preserves the
+  registration, and enqueue can still perform the rebase atomically.
+  `enqueue/NUMERIC_LIMIT` discards the entire temporary copy, so a later close
+  is decided from the unchanged comparison of `lastFinish` and `V`. A rebase
+  caused by another flow transforms both values by the common normalization in
+  §3.3 and preserves the truth of the debt-safe condition.
 
-Эти правила обеспечивают history, эквивалентную некоторому допустимому
-последовательному execution. Cancel-versus-dispatch winner восстанавливается
-по combined results/history: `CANCELLED` плюс отсутствие handle в batch
-означает победу cancel; presence handle в batch означает победу dispatch.
-Один поздний `NOT_LIVE` без истории намеренно не раскрывает причину отсутствия.
-Public JavaDoc для cancel и dispatch ДОЛЖЕН описать именно этот combined
-winner contract и не обещать cause из одного `NOT_LIVE`.
+These rules produce a history equivalent to some valid sequential execution.
+The cancel-versus-dispatch winner is reconstructed from combined results and
+history: `CANCELLED` plus absence of the handle from the batch means cancel won;
+presence of the handle in the batch means dispatch won. One late `NOT_LIVE`
+without history intentionally does not reveal the cause of absence. Public
+JavaDoc for cancel and dispatch MUST describe this combined winner contract and
+MUST NOT promise a cause from a single `NOT_LIVE`.
 
-## 9. Activation, deactivation и cancellation charge
+## 9. Activation, deactivation, and cancellation charge
 
 ### 9.1 Inactive → active
 
-Успешный enqueue registered inactive flow использует
-`S=max(V,lastFinish)`. Registration уже существует; activity меняется только
-из-за job count. Внутри непустого busy period dormant flow сохраняет свой
-finish history и не получает возможность сбросить его через краткую
-неактивность. Если scheduler был полностью idle, reset §3.4 уже установил
-`V=0` и все registered `lastFinish=0`, то есть начинается новый normalized
-busy period.
+A successful enqueue of a registered inactive flow uses
+`S=max(V,lastFinish)`. The registration already exists; activity changes only
+because of the job count. Within a non-empty busy period, a dormant flow
+preserves its finish history and cannot reset it through brief inactivity. If
+the scheduler was completely idle, the §3.4 reset has already set `V=0` and all
+registered `lastFinish=0`, starting a new normalized busy period.
 
 ### 9.2 Backlogged → active non-backlogged
 
-Dispatch последнего queued job flow делает его non-backlogged, если у него
-остаётся хотя бы один running job. State, weight и `lastFinish` сохраняются.
-Новый enqueue до последнего completion использует этот `lastFinish`.
+Dispatching a flow's last queued job makes it non-backlogged if at least one
+running job remains. State, weight, and `lastFinish` persist. A new enqueue
+before the last completion uses this `lastFinish`.
 
 ### 9.3 Active → inactive
 
-После cancel/complete, уменьшившего оба flow counters до zero, registration,
-weight и `lastFinish` сохраняются. Последующий enqueue того же FlowHandle в
-этом busy period использует `max(V,lastFinish)`. Пока `lastFinish > V`, сменить
-weight или получить новую fairness identity нельзя. Когда `V` достигает
-`lastFinish`, registration можно безопасно закрыть, не меняя start tag
-следующего возможного job.
+After a cancel or complete that reduces both flow counters to zero, the
+registration, weight, and `lastFinish` persist. A later enqueue with the same
+FlowHandle in this busy period uses `max(V,lastFinish)`. While
+`lastFinish > V`, the caller cannot change weight or obtain a new fairness
+identity. Once `V` reaches `lastFinish`, the registration can be closed safely
+without changing the start tag of the next possible job.
 
-Virtual charge cancelled job сохраняется даже после deactivation до global
-idle reset. Это намеренная non-retroactive semantics §6.1.
+The virtual charge of a cancelled job persists even after deactivation until
+the global idle reset. This is the intentional non-retroactive semantics of
+§6.1.
 
 ### 9.4 Registered → closed
 
-Inactive не означает closed. `closeFlow` удаляет identity только при
-`lastFinish <= V`. Поэтому close+register, в том числе с другим weight, не
-уменьшает start tag следующего job: до и после операции он равен `V`.
+Inactive does not mean closed. `closeFlow` removes identity only when
+`lastFinish <= V`. A close followed by register, including registration with a
+different weight, therefore does not reduce the next job's start tag: it equals
+`V` before and after the operation.
 
-## 10. Гарантии и границы claims
+## 10. Guarantees and claim boundaries
 
-Для traces без cancellation ядро соответствует plain SFQ(D) Jin04 §3.2:
+For traces without cancellation, the core conforms to plain SFQ(D) from Jin04
+§3.2:
 
-- `S=max(V,F_previous)` и `F=S+cost/weight`;
-- dispatch в неубывающем start-tag order;
-- `V` равен start tag последнего dispatch;
-- одновременно running не более `D`;
-- `D=1` даёт SFQ при том же tie rule; flow registration нельзя заменить, пока
-  её `lastFinish > V`;
-- при queued work, положительном `k` и свободном slot dispatch возвращает job;
-- один backlogged flow может занять все `D` slots.
+- `S=max(V,F_previous)` and `F=S+cost/weight`;
+- dispatch in non-decreasing start-tag order;
+- `V` equals the start tag of the last dispatch;
+- at most `D` jobs are running simultaneously;
+- `D=1` yields SFQ under the same tie rule; a flow registration cannot be
+  replaced while its `lastFinish > V`;
+- with queued work, positive `k`, and a free slot, dispatch returns a job;
+- one backlogged flow may occupy all `D` slots.
 
-Опубликованный pairwise completed-work bound из
-[What the papers support](THEORY.md#what-the-papers-support) применим
-только при его предпосылках, включая непрерывный backlog обоих flows,
-положительные фиксированные weights, конечные per-flow maximum costs и
-publication-compatible trace:
+The published pairwise completed-work bound from
+[What the papers support](THEORY.md#what-the-papers-support) applies only under
+its preconditions, including continuous backlog for both flows, positive fixed
+weights, finite per-flow maximum costs, and a publication-compatible trace:
 
 ```text
 |W_f/weight_f - W_g/weight_g|
 <= (D+1) * (c_f_max/weight_f + c_g_max/weight_g).
 ```
 
-Units — supplied cost. Для интервалов с cancellation документ не заявляет этот
-bound, потому что non-retroactive virtual charge не является completed work.
+The units are supplied cost. This document does not claim the bound for
+intervals containing cancellation because a non-retroactive virtual charge is
+not completed work.
 
-No-starvation заявляется только при предпосылках
-[Starvation and progress](THEORY.md#starvation-and-progress): bounded
-registry/очередь, положительные fixed-for-registration weights, положительная
-нижняя граница normalized increment, данный FIFO tie rule, конечное завершение
-каждого dispatched job и продолжающиеся completion/dispatch calls. В этой
-спецификации `maxFlows/maxLiveJobs` дают конечность, а входные ranges дают
-`cost/weight >= 1/Long.MAX_VALUE`. Close/new identity внутри busy period
-разрешены только после погашения debt, когда reset identity не уменьшает
-следующий start tag. Без внешнего progress scheduler не может гарантировать
-dispatch.
+No-starvation is claimed only under the preconditions in
+[Starvation and progress](THEORY.md#starvation-and-progress): a bounded
+registry and queue, positive weights fixed for each registration, a positive
+lower bound on normalized increment, the specified FIFO tie rule, finite
+completion of every dispatched job, and continuing completion and dispatch
+calls. In this specification, `maxFlows` and `maxLiveJobs` provide finiteness,
+and the input ranges give `cost/weight >= 1/Long.MAX_VALUE`. A close and new
+identity within a busy period are allowed only after debt is repaid, when
+resetting identity does not reduce the next start tag. Without external
+progress, the scheduler cannot guarantee dispatch.
 
-Обязательный adversarial trace: accepted head victim остаётся queued с
-фиксированным `S_v`; competing registered flow после каждого completion
-временно становится inactive и re-enqueue-ится до следующего dispatch. Его
-`lastFinish` НЕ может быть сброшен, пока он больше `V`, поэтому start tags
-каждого следующего request растут минимум на его положительный normalized
-increment. После `lastFinish <= V` новая identity всё равно начинает с `V` и
-не получает меньший key. При bounded registry и FIFO ties лишь конечное число
-requests может иметь key меньше key victim; victim должен быть dispatch-нут.
-Реализация, которая удаляет inactive flow при `lastFinish > V`, этот must-pass
-trace не проходит и не соответствует спецификации.
+Required adversarial trace: an accepted head victim remains queued with fixed
+`S_v`; after every completion, a competing registered flow temporarily becomes
+inactive and is enqueued again before the next dispatch. Its `lastFinish` MUST
+NOT be reset while greater than `V`, so the start tags of successive requests
+increase by at least its positive normalized increment. Once
+`lastFinish <= V`, a new identity still starts at `V` and receives no smaller
+key. With a bounded registry and FIFO ties, only finitely many requests can have
+a key smaller than the victim's key; the victim must be dispatched. An
+implementation that removes an inactive flow while `lastFinish > V` fails this
+must-pass trace and does not conform to the specification.
 
-Work conservation означает: каждый вызов `dispatchUpTo(k>0)` заполняет
-`min(k, freeSlots, queuedJobs)` issue slots. Это не обещание автоматического
-callback и не гарантия насыщения physical resource при неверном `D`, отсутствии
-вызовов или executor failure.
+Work conservation means every call to `dispatchUpTo(k>0)` fills
+`min(k, freeSlots, queuedJobs)` issue slots. It is not a promise of an automatic
+callback or a guarantee of physical-resource saturation when `D` is wrong,
+calls are absent, or an executor fails.
 
-## 11. Resource retention и bounds
+## 11. Resource retention and bounds
 
-Scheduler хранит `O(liveJobs + registeredFlows)` records. При
-`liveJobs <= maxLiveJobs` и `registeredFlows <= maxFlows` cardinality bounded;
-никакие структуры не растут с числом terminal jobs или прошлых registrations.
+The scheduler stores `O(liveJobs + registeredFlows)` records. With
+`liveJobs <= maxLiveJobs` and `registeredFlows <= maxFlows`, cardinality is
+bounded; no structure grows with the number of terminal jobs or past
+registrations.
 
-- Успешный cancel удаляет payload, job ID и queued record в своём LP.
-- Dispatch удаляет internal payload reference в своём LP; payload остаётся у
-  caller только через returned result.
-- Completion удаляет job ID и running record в своём LP.
-- Deactivation сохраняет только bounded registration state; успешный
-  `closeFlow` удаляет flow ID/state.
-- Terminal handles/IDs/results не кэшируются.
-- Handles содержат только inert owner token/sequence и не удерживают scheduler
-  или caller domain objects.
-- Единственные scheduler-wide lifetime значения — четыре fixed-width counters
-  и два fixed-width sequence, каждый ограничен `Long.MAX_VALUE`.
-- Каждая registration хранит три exact cost totals. Never-reused job sequence
-  ограничивает каждую сумму значением
-  `Long.MAX_VALUE * Long.MAX_VALUE` (не более 126 bits); successful close
-  удаляет эти totals вместе с registration state.
-- Exact tag components ограничены 4096 bits и exact rebase; numeric limit
-  приводит к явному отказу enqueue, а не неограниченному росту. Rebase требует
-  `O(queuedJobs + registeredFlows)` bounded temporary state.
+- A successful cancel removes the payload, job ID, and queued record at its LP.
+- Dispatch removes the internal payload reference at its LP; the caller retains
+  the payload only through the returned result.
+- Completion removes the job ID and running record at its LP.
+- Deactivation preserves only bounded registration state; successful
+  `closeFlow` removes the flow ID and state.
+- Terminal handles, IDs, and results are not cached.
+- Handles contain only an inert owner token and sequence and do not retain the
+  scheduler or caller-domain objects.
+- The only scheduler-wide lifetime values are four fixed-width counters and two
+  fixed-width sequences, each limited to `Long.MAX_VALUE`.
+- Each registration stores three exact cost totals. The never-reused job
+  sequence bounds each sum by `Long.MAX_VALUE * Long.MAX_VALUE` (at most 126
+  bits); successful close removes the totals with registration state.
+- Exact tag components are limited to 4096 bits and exact rebase; the numeric
+  limit causes explicit enqueue rejection rather than unbounded growth. Rebase
+  requires `O(queuedJobs + registeredFlows)` bounded temporary state.
 
-`JobHandle`, `FlowHandle`, dispatch result или snapshot, сохранённые caller,
-находятся вне internal retention библиотеки; благодаря inert handle они не
-удерживают scheduler transitively.
+A `JobHandle`, `FlowHandle`, dispatch result, or snapshot retained by a caller
+is outside the library's internal retention. Because handles are inert, they do
+not transitively retain the scheduler.
 
-## 12. Deviations и engineering resolutions относительно Jin04
+## 12. Deviations and engineering resolutions relative to Jin04
 
-| Тема | Jin04 | Решение проекта и последствие |
+| Topic | Jin04 | Project decision and consequence |
 |---|---|---|
-| Physical `N` | `D` — outstanding issue depth black-box server | Для непосредственных `N` ресурсов требуется `D=N`; иные mappings — external admission model |
-| API/capacity | Нет Java API и caller permits | `dispatchUpTo(k)` — irreversible atomic bounded batch request; внешний pump после enqueue/completion/capacity signal, core не вызывает callback |
-| Tie | Ties arbitrary | Total key `(S, admission sequence)` |
-| Busy-period boundary | Plain §3.2 не даёт полного правила | При global idle `V` и `lastFinish` всех registrations обнуляются, registrations остаются |
-| Cancellation | Отсутствует | Только queued cancel; immutable tags, virtual charge сохраняется до global idle; fairness theorem scoped away from cancelled intervals |
-| Flow identity | Flow предполагается устойчивой алгоритмической сущностью, API lifecycle отсутствует | Bounded registration, persistent dormant `lastFinish`, close только inactive с `lastFinish <= V` |
-| Job identity/duplicates | Отсутствуют | Inert never-reused capability handles, live-only JobId uniqueness, terminal `NOT_LIVE`, no tombstones |
-| Concurrency | Отсутствует | Linearizable atomic operations и exact LP table §8 |
-| Batch dispatch | Описано заполнение depth, без API atomicity | Один call выбирает последовательный SFQ(D) batch, но linearizes целиком |
-| Completion order | Black-box server | Любой running handle может complete; scheduler order не навязывает |
-| Weight changes | Не определены | Weight fixed registration lifetime; смена только safe close+new registration |
-| Numbers | Математические unbounded tags | Exact canonical rational, fail-closed 4096-bit persistent/8193-bit transient budgets, transactional all-registration rebase |
-| Retention | Не рассматривается | Payload release, no terminal metadata, `maxLiveJobs` и `maxFlows` bounds |
-| Introspection | Не рассматривается | Exact atomic aggregate snapshot и per-registration lifecycle snapshot без tags/identifiers/clock |
-| Executor rejection | Не рассматривается | Dispatch irrevocable; caller обязан complete, requeue является новым enqueue |
+| Physical `N` | `D` is the outstanding issue depth of a black-box server | Direct `N` resources require `D=N`; other mappings are an external admission model |
+| API and capacity | No Java API or caller permits | `dispatchUpTo(k)` is an irreversible atomic bounded-batch request; an external pump runs after enqueue, completion, and capacity signals, and the core invokes no callback |
+| Tie | Ties are arbitrary | Total key `(S, admission sequence)` |
+| Busy-period boundary | Plain §3.2 gives no complete rule | At global idle, `V` and `lastFinish` of every registration reset to zero while registrations remain |
+| Cancellation | Absent | Queued cancellation only; tags are immutable, virtual charge remains until global idle, and the fairness theorem is not claimed for cancelled intervals |
+| Flow identity | A flow is assumed to be a stable algorithmic entity; no API lifecycle exists | Bounded registration, persistent dormant `lastFinish`, and close only while inactive with `lastFinish <= V` |
+| Job identity and duplicates | Absent | Inert never-reused capability handles, live-only JobId uniqueness, terminal `NOT_LIVE`, and no tombstones |
+| Concurrency | Absent | Linearizable atomic operations and the exact LP table in §8 |
+| Batch dispatch | Filling depth is described without API atomicity | One call selects a sequential SFQ(D) batch but linearizes as a whole |
+| Completion order | Black-box server | Any running handle may complete; the scheduler imposes no completion order |
+| Weight changes | Undefined | Weight is fixed for the registration lifetime; change requires safe close and a new registration |
+| Numbers | Mathematical unbounded tags | Exact canonical rationals, fail-closed 4096-bit persistent and 8193-bit transient budgets, and transactional all-registration rebase |
+| Retention | Not considered | Payload release, no terminal metadata, and `maxLiveJobs` and `maxFlows` bounds |
+| Introspection | Not considered | Exact atomic aggregate and per-registration lifecycle snapshots without tags, identifiers, or a clock |
+| Executor rejection | Not considered | Dispatch is irrevocable; the caller must complete, and requeue is a new enqueue |
 
-Min-SFQ(D), FSFQ(D), FlashFQ, MSFQ, MSF²Q и MQFQ не добавляются. В частности,
-нет adjusted tags, GPS eligibility, anticipation, throttling threshold или
-multi-queue relaxed order.
+Min-SFQ(D), FSFQ(D), FlashFQ, MSFQ, MSF²Q, and MQFQ are not added. In
+particular, the library has no adjusted tags, GPS eligibility, anticipation,
+throttling threshold, or multi-queue relaxed order.
 
 ## 13. Model-testing obligations
 
-Reference oracle использует unbounded exact rationals и не отвергает
-синтаксически допустимый enqueue из-за bit budget. Production implementation
-ДОЛЖНА совпадать с oracle по каждому принятому prefix до ожидаемого bounded
-rejection. При `NUMERIC_LIMIT` comparison harness ДОЛЖЕН подтвердить на
-unbounded candidate, что формальный persistent/transient budget действительно
-нарушен после единственной допустимой transactional rebase; production state
-не меняется, а oracle state откатывается для продолжения общего trace.
+The reference oracle uses unbounded exact rationals and does not reject a
+syntactically valid enqueue because of the bit budget. The production
+implementation MUST match the oracle for every accepted prefix up to an
+expected bounded rejection. On `NUMERIC_LIMIT`, the comparison harness MUST
+confirm against the unbounded candidate that the formal persistent or transient
+budget is genuinely violated after the one permitted transactional rebase; the
+production state remains unchanged, and oracle state is rolled back so the
+shared trace can continue.
 
-При отсутствии такого expected rejection reference model и production
-implementation ДОЛЖНЫ совпадать по:
+When no such expected rejection occurs, the reference model and production
+implementation MUST agree on:
 
-- register/close outcomes; harness создаёт logical bijection
-  `oracle FlowHandle <-> SUT FlowHandle` по соответствующему успешному
-  register event, не читая token/sequence;
-- enqueue outcomes; аналогичная logical bijection JobHandle создаётся по
-  соответствующему `ACCEPTED` event;
-- ordered dispatch lists, сравниваемые field-by-field по §7.5 через эти
+- register and close outcomes; the harness creates a logical bijection
+  `oracle FlowHandle <-> SUT FlowHandle` for each corresponding successful
+  register event without reading token or sequence;
+- enqueue outcomes; an analogous logical JobHandle bijection is created for
+  each corresponding `ACCEPTED` event;
+- ordered dispatch lists compared field by field under §7.5 through these
   logical handle mappings;
-- cancel/completion results;
-- aggregate и per-flow snapshots;
-- rejection без state mutation;
-- busy-period reset, persistent dormant histories, snapshot counts и exact
+- cancel and completion results;
+- aggregate and per-flow snapshots;
+- rejection without state mutation;
+- busy-period reset, persistent dormant histories, snapshot counts, and exact
   per-flow lifecycle costs.
 
-Для concurrency history результаты должны допускать хотя бы одну
-последовательность по §8. Обязательные model properties:
+For a concurrency history, the results must permit at least one sequence under
+§8. Required model properties are:
 
-1. формулы и exact comparison tags;
-2. monotonic dispatch start tags внутри busy period;
-3. total deterministic ties;
-4. `running <= D` и exact slot accounting;
-5. at-most-once dispatch/completion/cancel success;
-6. membership-sensitive cancel/batch race: cancel-winner никогда не
-   dispatch-ится, выбранный batch job не cancel-ится, а невыбранный queued job
-   может быть cancelled после более раннего batch;
-7. registered/inactive/active transitions, immutable registration weight и
-   safe close;
-8. JobId reuse без ABA благодаря handle;
-9. FlowId reuse без ABA благодаря inert FlowHandle;
-10. exact all-registration rebase equivalence, transient/persistent limits и
-    transactional numeric rejection against unbounded oracle;
-11. adversarial dormant-flow starvation trace из §10;
-12. concurrent `maxFlows` capacity, register/close/enqueue/global-idle/rebase
-    races из §8.1;
-13. bounded record cardinality и отсутствие terminal/payload retention.
-14. late `cancel/NOT_LIVE` допускает все terminal/stale/foreign причины и не
-    используется как самостоятельное доказательство dispatch winner.
-15. conservation equations §4.2 после каждого event, с mathematical sums без
-    test-side `long` overflow;
-16. exact handle equality/hash contract, разные runtime types, отсутствие
-    `Comparable`/`Serializable` и public token/sequence accessors;
-17. identity equality immutable `Dispatch`, unmodifiable detached result list
-    и field-by-field differential comparison с payload identity.
+1. formulas and exact tag comparison;
+2. monotonic dispatch start tags within a busy period;
+3. total deterministic tie-breaking;
+4. `running <= D` and exact slot accounting;
+5. at-most-once dispatch, completion, and cancel success;
+6. membership-sensitive cancel and batch race: a cancel winner is never
+   dispatched, a selected batch job is not cancelled, and an unselected queued
+   job may be cancelled after an earlier batch;
+7. registered, inactive, and active transitions, immutable registration weight,
+   and safe close;
+8. JobId reuse without ABA through the handle;
+9. FlowId reuse without ABA through the inert FlowHandle;
+10. exact all-registration rebase equivalence, transient and persistent limits,
+    and transactional numeric rejection against the unbounded oracle;
+11. the adversarial dormant-flow starvation trace from §10;
+12. concurrent `maxFlows` capacity and the register, close, enqueue,
+    global-idle, and rebase races from §8.1;
+13. bounded record cardinality and absence of terminal or payload retention;
+14. late `cancel/NOT_LIVE` permits every terminal, stale, and foreign cause and
+    is not used alone as proof of the dispatch winner;
+15. the §4.2 conservation equations after every event, with mathematical sums
+    and no test-side `long` overflow;
+16. the exact handle equality and hash-code contract, distinct runtime types,
+    no `Comparable` or `Serializable`, and no public token or sequence
+    accessors;
+17. identity equality for immutable `Dispatch`, an unmodifiable detached result
+    list, and field-by-field differential comparison with payload identity.
 
-Любая будущая оптимизация обязана сохранять эту наблюдаемую модель. Изменение
-любого решения в §12 требует сначала изменить эту спецификацию, claim scope и
-model tests.
+Every future optimization must preserve this observable model. Changing any
+decision in §12 requires changing this specification, the claim scope, and the
+model tests first.
