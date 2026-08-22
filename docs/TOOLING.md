@@ -30,12 +30,13 @@ the Java 17 version, preventing accidental publication of newer bytecode.
 | Module | Purpose | Published |
 | --- | --- | --- |
 | `sfqd-core` | runtime library and ordinary tests | parent and core are deployable |
+| `sfqd-examples` | compiled and tested integration examples | no |
 | `sfqd-coverage` | aggregate JaCoCo report | no |
 | `sfqd-jcstress` | JVM concurrency litmus tests | no |
 | `sfqd-benchmarks` | JMH workloads and fixture smoke | no |
 
-The default reactor builds only core and coverage. The two harness modules are
-enabled explicitly so their dependencies cannot leak into the runtime graph.
+The default reactor builds core, examples, and coverage. The two harness modules
+are enabled explicitly so their dependencies cannot leak into the runtime graph.
 
 ## Default verification
 
