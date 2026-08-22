@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!-- JMH and jcstress processors generate these reserved suffixes; handwritten harness sources remain analyzed. -->
+  <Match>
+    <Or>
+      <Class name="~.*_jmh.*"/>
+      <Class name="~.*_jcstress.*"/>
+    </Or>
+  </Match>
+</FindBugsFilter>

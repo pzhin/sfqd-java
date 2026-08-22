@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!-- Add only narrowly scoped exclusions with a rationale in an adjacent XML comment. -->
+</FindBugsFilter>
+

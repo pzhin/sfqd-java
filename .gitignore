@@ -1,0 +1,9 @@
+target/
+/.idea/
+/.vscode/
+*.iml
+.DS_Store
+*.log
+**/.jqwik-database
+sfqd-jcstress/jcstress-results-*.bin.gz
+sfqd-jcstress/results/
