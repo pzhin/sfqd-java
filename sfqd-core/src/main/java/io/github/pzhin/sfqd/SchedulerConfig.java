@@ -20,12 +20,14 @@ import java.util.Objects;
  * @param maxLiveJobs maximum queued plus running jobs, in
  *        {@code [depth, Integer.MAX_VALUE]}
  * @param cancellationAccounting virtual fairness accounting policy for cancelled queued jobs
+ * @param weightDomain registration policy for fixed flow weights
  */
 public record SchedulerConfig(
         int depth,
         int maxFlows,
         int maxLiveJobs,
-        CancellationAccounting cancellationAccounting) {
+        CancellationAccounting cancellationAccounting,
+        WeightDomain weightDomain) {
     /**
      * Maximum representable and validated issue depth.
      *
@@ -42,7 +44,24 @@ public record SchedulerConfig(
      * @param maxLiveJobs maximum queued plus running jobs, in {@code [depth, Integer.MAX_VALUE]}
      */
     public SchedulerConfig(int depth, int maxFlows, int maxLiveJobs) {
-        this(depth, maxFlows, maxLiveJobs, CancellationAccounting.CHARGE_RESERVED_COST);
+        this(depth, maxFlows, maxLiveJobs,
+                CancellationAccounting.CHARGE_RESERVED_COST, WeightDomain.unrestricted());
+    }
+
+    /**
+     * Creates a configuration with an unrestricted weight domain.
+     *
+     * @param depth maximum outstanding issue depth, in {@code [1, 1_000_000]}
+     * @param maxFlows maximum simultaneously registered flows, in {@code [1, Integer.MAX_VALUE]}
+     * @param maxLiveJobs maximum queued plus running jobs, in {@code [depth, Integer.MAX_VALUE]}
+     * @param cancellationAccounting virtual fairness accounting policy for cancelled queued jobs
+     */
+    public SchedulerConfig(
+            int depth,
+            int maxFlows,
+            int maxLiveJobs,
+            CancellationAccounting cancellationAccounting) {
+        this(depth, maxFlows, maxLiveJobs, cancellationAccounting, WeightDomain.unrestricted());
     }
 
     /**
@@ -55,13 +74,15 @@ public record SchedulerConfig(
      * @param maxLiveJobs maximum queued plus running jobs, in
      *        {@code [depth, Integer.MAX_VALUE]}
      * @param cancellationAccounting virtual fairness accounting policy for cancelled queued jobs
+     * @param weightDomain registration policy for fixed flow weights
      * @throws IllegalArgumentException if depth is outside {@code [1, 1_000_000]},
      *         maxFlows is outside {@code [1, Integer.MAX_VALUE]}, or
      *         maxLiveJobs is outside {@code [depth, Integer.MAX_VALUE]}
-     * @throws NullPointerException if cancellationAccounting is null
+     * @throws NullPointerException if cancellationAccounting or weightDomain is null
      */
     public SchedulerConfig {
         Objects.requireNonNull(cancellationAccounting, "cancellationAccounting");
+        Objects.requireNonNull(weightDomain, "weightDomain");
         if (depth < 1 || depth > MAX_DEPTH) {
             throw new IllegalArgumentException("depth must be in [1, 1_000_000]");
         }

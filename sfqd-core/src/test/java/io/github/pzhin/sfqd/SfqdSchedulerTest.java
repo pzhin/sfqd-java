@@ -11,6 +11,26 @@ import org.junit.jupiter.api.Test;
 
 class SfqdSchedulerTest {
     @Test
+    void divisorWeightDomainRejectsOutsideWeightsWithoutConsumingCapacity() {
+        SchedulerConfig config = new SchedulerConfig(
+                2, 5, 5, CancellationAccounting.CHARGE_RESERVED_COST, WeightDomain.divisorsOf(8L));
+        SfqdScheduler<String, String, Object> scheduler = new SfqdScheduler<>(config);
+
+        SchedulerSnapshot before = scheduler.snapshot();
+        assertEquals(RegisterFlowResult.Rejected.WEIGHT_OUTSIDE_DOMAIN,
+                scheduler.registerFlow("outside", 3L));
+        assertEquals(before, scheduler.snapshot());
+        List<FlowHandle> handles = List.of(
+                registered(scheduler.registerFlow("eight", 8L)),
+                registered(scheduler.registerFlow("four", 4L)),
+                registered(scheduler.registerFlow("two", 2L)),
+                registered(scheduler.registerFlow("one-a", 1L)),
+                registered(scheduler.registerFlow("one-b", 1L)));
+        assertEquals(5, handles.size());
+        assertEquals(5, scheduler.snapshot().registeredFlows());
+    }
+
+    @Test
     void schedulesByExactStartTagAndAccountsLifecycle() {
         SfqdScheduler<String, String, Object> scheduler =
                 new SfqdScheduler<>(new SchedulerConfig(2, 3, 6));

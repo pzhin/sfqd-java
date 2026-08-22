@@ -22,6 +22,76 @@ class SfqdLongRunNumericAccumulationTest {
     private static final int NUMERIC_STRESS_FLOOR_BITS = 3500;
 
     @Test
+    void pairwiseCoprimeLongWeightsReachNumericLimitAfterBoundedAdmissions() {
+        SfqdScheduler<String, Long, Payload> scheduler =
+                new SfqdScheduler<>(new SchedulerConfig(DEPTH, 70, 3));
+        FlowHandle anchor = registered(scheduler.registerFlow("anchor", 1L));
+        List<FlowHandle> flows = new ArrayList<>(69);
+        BigInteger nextWeight = BigInteger.ONE.shiftLeft(60).nextProbablePrime();
+        for (int index = 0; index < 69; index++) {
+            flows.add(registered(scheduler.registerFlow("fractional-" + index, nextWeight.longValueExact())));
+            nextWeight = nextWeight.nextProbablePrime();
+        }
+
+        JobHandle anchorJob = accepted(scheduler.enqueue(anchor, 1L, new Payload(1L), 1L));
+        assertEquals(anchorJob, scheduler.dispatchUpTo(1).get(0).jobHandle());
+
+        long nextJobId = 2L;
+        int successfulAdmissions = 1;
+        for (int pass = 0; pass < 2; pass++) {
+            for (FlowHandle flow : flows) {
+                List<JobHandle> visit = new ArrayList<>(2);
+                for (int visitJob = 0; visitJob < 2; visitJob++) {
+                    SchedulerSnapshot before = scheduler.snapshot();
+                    EnqueueResult result = scheduler.enqueue(
+                            flow, nextJobId, new Payload(nextJobId), 1L);
+                    if (result == EnqueueResult.Rejected.NUMERIC_LIMIT) {
+                        assertEquals(273, successfulAdmissions);
+                        assertEquals(before, scheduler.snapshot());
+                        for (JobHandle accepted : visit) {
+                            assertEquals(accepted, scheduler.dispatchUpTo(1).get(0).jobHandle());
+                            assertEquals(CompletionResult.COMPLETED, scheduler.complete(accepted));
+                        }
+                        assertEquals(CompletionResult.COMPLETED, scheduler.complete(anchorJob));
+                        JobHandle afterIdleReset = accepted(scheduler.enqueue(
+                                flow, nextJobId, new Payload(nextJobId), 1L));
+                        assertEquals(afterIdleReset, scheduler.dispatchUpTo(1).get(0).jobHandle());
+                        assertEquals(CompletionResult.COMPLETED, scheduler.complete(afterIdleReset));
+                        return;
+                    }
+                    JobHandle accepted = assertInstanceOf(EnqueueResult.Accepted.class, result).jobHandle();
+                    visit.add(accepted);
+                    successfulAdmissions++;
+                    nextJobId++;
+                }
+                for (JobHandle accepted : visit) {
+                    assertEquals(accepted, scheduler.dispatchUpTo(1).get(0).jobHandle());
+                    assertEquals(CompletionResult.COMPLETED, scheduler.complete(accepted));
+                }
+            }
+        }
+        throw new AssertionError("trace did not reach NUMERIC_LIMIT");
+    }
+
+    @Test
+    void divisorWeightDomainRejectsCounterexampleWeightAtRegistration() {
+        SfqdScheduler<String, Long, Payload> scheduler = new SfqdScheduler<>(new SchedulerConfig(
+                DEPTH,
+                70,
+                3,
+                CancellationAccounting.CHARGE_RESERVED_COST,
+                WeightDomain.divisorsOf(8L)));
+        SchedulerSnapshot before = scheduler.snapshot();
+        BigInteger nextWeight = BigInteger.ONE.shiftLeft(60).nextProbablePrime();
+        for (int index = 0; index < 69; index++) {
+            assertEquals(RegisterFlowResult.Rejected.WEIGHT_OUTSIDE_DOMAIN,
+                    scheduler.registerFlow("fractional-" + index, nextWeight.longValueExact()));
+            assertEquals(before, scheduler.snapshot());
+            nextWeight = nextWeight.nextProbablePrime();
+        }
+    }
+
+    @Test
     void publicOperationsPreserveExactOrderAcrossLongFractionalAccumulationNearNumericBudget() {
         SchedulerConfig config = new SchedulerConfig(DEPTH, FLOW_COUNT + 1, 5);
         ReferenceScheduler<String, Long, Payload> reference = new ReferenceScheduler<>(config);
@@ -151,6 +221,14 @@ class SfqdLongRunNumericAccumulationTest {
         RegisterFlowResult.Registered actual = assertInstanceOf(
                 RegisterFlowResult.Registered.class, production.registerFlow(flowId, weight));
         return new FlowPair(expected.flowHandle(), actual.flowHandle());
+    }
+
+    private static FlowHandle registered(RegisterFlowResult result) {
+        return assertInstanceOf(RegisterFlowResult.Registered.class, result).flowHandle();
+    }
+
+    private static JobHandle accepted(EnqueueResult result) {
+        return assertInstanceOf(EnqueueResult.Accepted.class, result).jobHandle();
     }
 
     private static JobPair enqueuePair(

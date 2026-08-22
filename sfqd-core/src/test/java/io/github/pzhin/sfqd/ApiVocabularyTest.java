@@ -44,8 +44,23 @@ final class ApiVocabularyTest {
                 8, 10, 20, CancellationAccounting.CHARGE_RESERVED_COST);
 
         assertEquals(CancellationAccounting.CHARGE_RESERVED_COST, defaultConfig.cancellationAccounting());
+        assertEquals(WeightDomain.unrestricted(), defaultConfig.weightDomain());
         assertEquals(defaultConfig, explicitConfig);
         assertEquals(1, CancellationAccounting.values().length);
+    }
+
+    @Test
+    void configCanConstrainWeightsToOneCommonScale() {
+        WeightDomain divisorsOfEight = WeightDomain.divisorsOf(8L);
+        SchedulerConfig config = new SchedulerConfig(
+                8, 10, 20, CancellationAccounting.CHARGE_RESERVED_COST, divisorsOfEight);
+
+        assertEquals(divisorsOfEight, config.weightDomain());
+        assertEquals(java.util.OptionalLong.of(8L), divisorsOfEight.commonScale());
+        assertTrue(WeightDomain.unrestricted().commonScale().isEmpty());
+        assertEquals(WeightDomain.divisorsOf(8L), divisorsOfEight);
+        assertEquals("WeightDomain[divisorsOf=8]", divisorsOfEight.toString());
+        assertThrows(IllegalArgumentException.class, () -> WeightDomain.divisorsOf(0L));
     }
 
     @Test
@@ -108,7 +123,7 @@ final class ApiVocabularyTest {
         JobHandle job = new JobHandle(owner, 1L);
         assertSame(flow, new RegisterFlowResult.Registered(flow).flowHandle());
         assertSame(job, new EnqueueResult.Accepted(job).jobHandle());
-        assertEquals(3, RegisterFlowResult.Rejected.values().length);
+        assertEquals(4, RegisterFlowResult.Rejected.values().length);
         assertEquals(5, EnqueueResult.Rejected.values().length);
         assertEquals(4, CloseFlowResult.values().length);
         assertEquals(3, CancelResult.values().length);

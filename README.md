@@ -95,15 +95,22 @@ deterministic FIFO tie-break. No floating-point arithmetic is used.
 ## Minimal example
 
 ```java
+import io.github.pzhin.sfqd.CancellationAccounting;
 import io.github.pzhin.sfqd.CompletionResult;
 import io.github.pzhin.sfqd.Dispatch;
 import io.github.pzhin.sfqd.EnqueueResult;
 import io.github.pzhin.sfqd.RegisterFlowResult;
 import io.github.pzhin.sfqd.SchedulerConfig;
 import io.github.pzhin.sfqd.SfqdScheduler;
+import io.github.pzhin.sfqd.WeightDomain;
 
 var scheduler = new SfqdScheduler<String, String, Runnable>(
-        new SchedulerConfig(4, 1_000, 100_000));
+        new SchedulerConfig(
+                4,
+                1_000,
+                100_000,
+                CancellationAccounting.CHARGE_RESERVED_COST,
+                WeightDomain.divisorsOf(8)));
 
 var result = scheduler.registerFlow("tenant-a", 2);
 if (!(result instanceof RegisterFlowResult.Registered registered)) {
@@ -164,9 +171,9 @@ whose later jobs could be stranded if an earlier pool submission throws.
 ### Register a flow
 
 `registerFlow(flowId, weight)` creates an opaque flow handle. A flow identifier
-cannot be registered twice at the same time, and the configured flow limit is
-enforced. A closed identifier may later be registered again, producing a new
-handle.
+cannot be registered twice at the same time, and the configured flow and weight
+domain limits are enforced. A closed identifier may later be registered again,
+producing a new handle.
 
 ### Enqueue a job
 
@@ -325,6 +332,34 @@ new SchedulerConfig(
 ```
 
 No free-cancellation accounting policy is currently implemented.
+
+The three- and four-argument forms preserve the unrestricted positive `long`
+weight domain. For production configurations with a known common scale, the
+five-argument form can reject weights outside a denominator-safe profile at
+registration:
+
+```java
+new SchedulerConfig(
+        issueDepth,
+        maxFlows,
+        maxLiveJobs,
+        CancellationAccounting.CHARGE_RESERVED_COST,
+        WeightDomain.divisorsOf(8));
+```
+
+This profile accepts `8, 4, 2, 1, 1`: every weight divides `8`. Consequently,
+every reduced `cost / weight` denominator divides `8`, and exact addition,
+maximum, and rebase subtraction cannot introduce new denominator factors.
+`WeightDomain.unrestricted()` remains available for workloads that need the
+full `long` range.
+
+The divisor profile prevents denominator growth caused by mutually coprime
+weights; it is not an unconditional promise that `NUMERIC_LIMIT` can never
+occur. Numerators and accumulated cancellation debt still use the documented
+finite exact-arithmetic budget. In unrestricted mode, a natural trace with an
+anchor job and 69 consecutive prime weights above `2^60` reaches
+`NUMERIC_LIMIT` after 273 successful admissions; this behavior is covered by a
+regression test.
 
 Weights and costs are positive `long` values. Choose `D` as the number of jobs
 your execution layer can have issued but not completed. For `N` identical

@@ -65,6 +65,7 @@ final class SchedulerTestSupport {
       case FLOW_LIMIT -> FLOW_LIMIT;
       case DUPLICATE_REGISTERED_ID -> 3;
       case FLOW_SEQUENCE_EXHAUSTED -> 4;
+      case WEIGHT_OUTSIDE_DOMAIN -> 5;
     };
   }
 
