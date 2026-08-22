@@ -299,7 +299,9 @@ construct it from a numeric ID.
 
 ```text
 FlowState = (flowHandle, flowId, weight, lastFinish,
-             queuedCount, runningCount)
+             queuedCount, runningCount,
+             acceptedCost, dispatchedCost, cancelledCost,
+             runningSuppliedCost)
 
 QueuedJob = (jobHandle, jobId, flowHandle, payload,
              cost, S, F, jobSequence)
@@ -348,6 +350,21 @@ In every observable state:
     `dispatched = |Running| + completed`.
 14. No counter exceeds `Long.MAX_VALUE`; equality and sum checks MUST NOT use
     overflowing fixed-width arithmetic.
+15. For every registered flow, exact supplied-cost accounting satisfies:
+
+    ```text
+    queuedCost
+        = acceptedCost
+        - dispatchedCost
+        - cancelledCost
+
+    completedSuppliedCost
+        = dispatchedCost
+        - runningSuppliedCost
+
+    runningSuppliedCost
+        = sum(cost(job) for running jobs of this flow)
+    ```
 
 ## 5. Lifecycles and identity
 
@@ -493,8 +510,9 @@ Order of processing:
 4. If `lastFlowSequence == Long.MAX_VALUE`, return
    `FLOW_SEQUENCE_EXHAUSTED`.
 5. Create an inert `FlowHandle(ownerToken,lastFlowSequence+1)` and FlowState
-   with `lastFinish=0`, zero counts, and the fixed weight; insert both
-   registration indexes and update the sequence.
+   with `lastFinish=0`, zero counts, `acceptedCost=0`, `dispatchedCost=0`,
+   `cancelledCost=0`, `runningSuppliedCost=0`, and the fixed weight; insert
+   both registration indexes and update the sequence.
 6. Return `REGISTERED(flowHandle)`.
 
 Registration during a non-empty busy period is allowed: it does not affect
@@ -534,7 +552,8 @@ Order of processing:
    `F`; when required, apply §3.3 transactionally to the complete necessary
    state copy. If the budget remains violated, return `NUMERIC_LIMIT`.
 7. Create the inert JobHandle and queued record, insert it into all job indexes,
-   and update the registered flow counts, `lastFinish`, counters, and job
+   increment the registered flow's `acceptedCost` by `cost`, and update the
+   registered flow counts, `lastFinish`, scheduler-wide counters, and job
    sequence.
 8. Return `ACCEPTED(jobHandle)`.
 
@@ -547,8 +566,9 @@ A null handle is an invalid argument. An opaque handle from another scheduler
 instance is treated as `NOT_LIVE`.
 
 - If the handle is in `Queued`, atomically remove the job from the queue,
-  priority, and `LiveById`; decrement the flow count, increment `cancelled`,
-  release the payload, and return `CANCELLED`.
+  priority, and `LiveById`; decrement the flow count, increment the registered
+  flow's `cancelledCost` by `cost(job)`, increment the scheduler-wide
+  `cancelled` counter, release the payload, and return `CANCELLED`.
 - If the handle is in `Running`, change nothing and return
   `TOO_LATE_ALREADY_DISPATCHED`.
 - Otherwise, return `NOT_LIVE`.
@@ -585,7 +605,9 @@ For `i=1..m`, the operation sequentially:
 3. removes the queued record and payload from internal queued structures;
 4. creates a `RunningJob`, retaining the handle, IDs, flow, and cost, but not
    the payload;
-5. updates flow counts and `dispatched`;
+5. updates flow counts, increments the registered flow's `dispatchedCost` and
+   `runningSuppliedCost` by `cost(job)`, and increments the scheduler-wide
+   `dispatched` counter;
 6. appends `Dispatch(handle, jobId, flowId, payload, cost)` to the result list.
 
 The result list is ordered by actual dispatch order. The entire batch is one
@@ -619,8 +641,9 @@ A null handle is an invalid argument. An opaque handle from another scheduler
 instance is treated as `NOT_LIVE`.
 
 - If the handle is in `Running`, atomically remove the running record and
-  `LiveById`, decrement the flow count, increment `completed`, release one
-  internal issue slot, and return `COMPLETED`.
+  `LiveById`, decrement the flow count, decrement the registered flow's
+  `runningSuppliedCost` by `cost(job)`, increment the scheduler-wide
+  `completed` counter, release one internal issue slot, and return `COMPLETED`.
 - If the handle is in `Queued`, change nothing and return `NOT_DISPATCHED`.
 - Otherwise, return `NOT_LIVE`.
 
@@ -887,9 +910,10 @@ registrations.
   scheduler or caller-domain objects.
 - The only scheduler-wide lifetime values are four fixed-width counters and two
   fixed-width sequences, each limited to `Long.MAX_VALUE`.
-- Each registration stores three exact cost totals. The never-reused job
-  sequence bounds each sum by `Long.MAX_VALUE * Long.MAX_VALUE` (at most 126
-  bits); successful close removes the totals with registration state.
+- Each registration stores three exact cumulative cost totals and one exact
+  current cost gauge. The never-reused job sequence bounds each value by
+  `Long.MAX_VALUE * Long.MAX_VALUE` (at most 126 bits); successful close removes
+  them with registration state.
 - Exact tag components are limited to 4096 bits and exact rebase; the numeric
   limit causes explicit enqueue rejection rather than unbounded growth. Rebase
   requires `O(queuedJobs + registeredFlows)` bounded temporary state.
