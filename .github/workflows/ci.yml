@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  quality-gates:
+  quality-gates-matrix:
     strategy:
       fail-fast: false
       matrix:
@@ -145,3 +145,39 @@ jobs:
           '^io\.github\.pzhin\.sfqd\.benchmarks\.OperationLatencyBenchmark\.enqueueBackloggedTail$'
           -p flowCount=1 -p depth=1 -p scenario=UNIFORM
           -wi 0 -i 1 -f 1 -r 100ms
+
+  required-ci:
+    name: required-ci
+    if: ${{ always() }}
+    needs:
+      - quality-gates-matrix
+      - javadoc-negative
+      - jcstress-quick
+      - reproducible-artifacts
+      - publication-topology
+      - benchmark-harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every CI job to succeed
+        env:
+          QUALITY_GATES_MATRIX_RESULT: ${{ needs['quality-gates-matrix'].result }}
+          JAVADOC_NEGATIVE_RESULT: ${{ needs['javadoc-negative'].result }}
+          JCSTRESS_QUICK_RESULT: ${{ needs['jcstress-quick'].result }}
+          REPRODUCIBLE_ARTIFACTS_RESULT: ${{ needs['reproducible-artifacts'].result }}
+          PUBLICATION_TOPOLOGY_RESULT: ${{ needs['publication-topology'].result }}
+          BENCHMARK_HARNESS_RESULT: ${{ needs['benchmark-harness'].result }}
+        run: |
+          for result in \
+            "$QUALITY_GATES_MATRIX_RESULT" \
+            "$JAVADOC_NEGATIVE_RESULT" \
+            "$JCSTRESS_QUICK_RESULT" \
+            "$REPRODUCIBLE_ARTIFACTS_RESULT" \
+            "$PUBLICATION_TOPOLOGY_RESULT" \
+            "$BENCHMARK_HARNESS_RESULT"
+          do
+            if [ "$result" != "success" ]; then
+              echo "A required CI job did not succeed: $result"
+              exit 1
+            fi
+          done
