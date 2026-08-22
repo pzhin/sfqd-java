@@ -9,6 +9,45 @@ permissions:
 
 jobs:
   quality-gates:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            java-version: "17"
+            maven-command: ./mvnw
+          - os: ubuntu-latest
+            java-version: "21"
+            maven-command: ./mvnw
+          - os: ubuntu-latest
+            java-version: "25"
+            maven-command: ./mvnw
+          - os: windows-latest
+            java-version: "17"
+            maven-command: .\mvnw.cmd
+          - os: windows-latest
+            java-version: "21"
+            maven-command: .\mvnw.cmd
+          - os: windows-latest
+            java-version: "25"
+            maven-command: .\mvnw.cmd
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java-version }}
+          cache: maven
+
+      - name: Verify
+        run: ${{ matrix.maven-command }} --batch-mode --no-transfer-progress clean verify
+
+  javadoc-negative:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -21,9 +60,6 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
-
-      - name: Verify
-        run: ./mvnw --batch-mode --no-transfer-progress clean verify
 
       - name: Prove undocumented public API fails the build
         run: tools/verify-javadoc-gate.sh
