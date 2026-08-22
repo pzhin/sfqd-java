@@ -47,7 +47,7 @@ All 14 possible `(B,Q)` pairs with `B <= Q` are named `Population` values.
 by 1,000 queued jobs. The effective batch size is
 `min(batch limit, depth, Q)`; this matters for `FULL_DEPTH` when `depth > Q`.
 
-`dispatchBatch` measures the atomic `capacityAvailable` call and restores its
+`dispatchBatch` measures the atomic `dispatchUpTo` call and restores its
 state outside the JMH timer. `continuousBusyPeriodCycle` measures dispatch,
 completion, and replacement admission. Its scheduler starts busy and never
 reaches global idle during the trial, so long runs retain flow history and
