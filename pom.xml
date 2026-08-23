@@ -282,10 +282,10 @@
               <publishingServerId>central</publishingServerId>
               <skipPublishing>${central.publish.skip}</skipPublishing>
               <excludeArtifacts>
-                <excludeArtifact>io.github.pzhin:sfqd-examples</excludeArtifact>
-                <excludeArtifact>io.github.pzhin:sfqd-coverage</excludeArtifact>
-                <excludeArtifact>io.github.pzhin:sfqd-jcstress</excludeArtifact>
-                <excludeArtifact>io.github.pzhin:sfqd-benchmarks</excludeArtifact>
+                <excludeArtifact>sfqd-examples</excludeArtifact>
+                <excludeArtifact>sfqd-coverage</excludeArtifact>
+                <excludeArtifact>sfqd-jcstress</excludeArtifact>
+                <excludeArtifact>sfqd-benchmarks</excludeArtifact>
               </excludeArtifacts>
               <autoPublish>true</autoPublish>
               <waitUntil>published</waitUntil>
