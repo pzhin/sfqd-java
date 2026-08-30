@@ -4,6 +4,7 @@ import static io.github.pzhin.sfqd.benchmarks.SchedulerBenchmarkSupport.requireA
 import static io.github.pzhin.sfqd.benchmarks.SchedulerBenchmarkSupport.requireCancelled;
 
 import io.github.pzhin.sfqd.CancelResult;
+import io.github.pzhin.sfqd.CancellationAccounting;
 import io.github.pzhin.sfqd.EnqueueResult;
 import io.github.pzhin.sfqd.SchedulerSnapshot;
 import io.github.pzhin.sfqd.benchmarks.SchedulerBenchmarkSupport.Fixture;
@@ -54,6 +55,10 @@ public class CancellationCycleBenchmark {
         @Param
         private Target target;
 
+        /** Cancellation accounting policy under measurement. */
+        @Param({"CHARGE_RESERVED_COST", "REFUND_CANCELLED_COST"})
+        private CancellationAccounting cancellationAccounting;
+
         private Fixture fixture;
         private boolean nextHead;
         private int nextFlow;
@@ -67,7 +72,7 @@ public class CancellationCycleBenchmark {
         /** Creates the bounded caller and scheduler queues outside measurements. */
         @Setup(Level.Trial)
         public void setupTrial() {
-            fixture = new Fixture(flowCount, depth, scenario, 0, 2);
+            fixture = new Fixture(flowCount, depth, scenario, 0, 2, cancellationAccounting);
         }
 
         /** Selects and removes caller-side target bookkeeping outside the timed cycle. */

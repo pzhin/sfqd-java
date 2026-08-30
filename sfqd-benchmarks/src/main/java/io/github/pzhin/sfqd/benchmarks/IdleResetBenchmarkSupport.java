@@ -7,6 +7,7 @@ import static io.github.pzhin.sfqd.benchmarks.SchedulerBenchmarkSupport.requireC
 import static io.github.pzhin.sfqd.benchmarks.SchedulerBenchmarkSupport.requireRegistered;
 
 import io.github.pzhin.sfqd.CancelResult;
+import io.github.pzhin.sfqd.CancellationAccounting;
 import io.github.pzhin.sfqd.CompletionResult;
 import io.github.pzhin.sfqd.Dispatch;
 import io.github.pzhin.sfqd.EnqueueResult;
@@ -45,6 +46,15 @@ final class IdleResetBenchmarkSupport {
         private JobHandle terminalHandle;
 
         TerminalFixture(int flowCount, int depth, boolean allTagged, TerminalOperation operation) {
+            this(flowCount, depth, allTagged, operation, CancellationAccounting.CHARGE_RESERVED_COST);
+        }
+
+        TerminalFixture(
+                int flowCount,
+                int depth,
+                boolean allTagged,
+                TerminalOperation operation,
+                CancellationAccounting cancellationAccounting) {
             if (flowCount < 1 || depth < 1) {
                 throw new IllegalArgumentException("flowCount and depth must be positive");
             }
@@ -52,7 +62,8 @@ final class IdleResetBenchmarkSupport {
             this.depth = depth;
             this.allTagged = allTagged;
             this.operation = operation;
-            this.scheduler = new SfqdScheduler<>(new SchedulerConfig(depth, flowCount, Math.max(depth, flowCount)));
+            this.scheduler = new SfqdScheduler<>(new SchedulerConfig(
+                    depth, flowCount, Math.max(depth, flowCount), cancellationAccounting));
             this.flows = new ArrayList<>(flowCount);
             this.jobs = new ArrayList<>(flowCount);
             for (int index = 0; index < flowCount; index++) {
@@ -187,12 +198,18 @@ final class IdleResetBenchmarkSupport {
         private final JobKey job = new JobKey(1L);
 
         FirstBusyPeriodFixture(int flowCount, int depth) {
+            this(flowCount, depth, CancellationAccounting.CHARGE_RESERVED_COST);
+        }
+
+        FirstBusyPeriodFixture(
+                int flowCount, int depth, CancellationAccounting cancellationAccounting) {
             if (flowCount < 1 || depth < 1) {
                 throw new IllegalArgumentException("flowCount and depth must be positive");
             }
             this.flowCount = flowCount;
             this.depth = depth;
-            this.scheduler = new SfqdScheduler<>(new SchedulerConfig(depth, flowCount, depth));
+            this.scheduler = new SfqdScheduler<>(new SchedulerConfig(
+                    depth, flowCount, depth, cancellationAccounting));
             FlowHandle first = null;
             for (int index = 0; index < flowCount; index++) {
                 FlowHandle registered = requireRegistered(scheduler.registerFlow(new FlowKey(index), 1L));
