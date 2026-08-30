@@ -29,6 +29,7 @@ FIELD owner=io.github.pzhin.sfqd.CancelResult name=CANCELLED modifiers=[public, 
 FIELD owner=io.github.pzhin.sfqd.CancelResult name=NOT_LIVE modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancelResult enumConstant=true synthetic=false
 FIELD owner=io.github.pzhin.sfqd.CancelResult name=TOO_LATE_ALREADY_DISPATCHED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancelResult enumConstant=true synthetic=false
 FIELD owner=io.github.pzhin.sfqd.CancellationAccounting name=CHARGE_RESERVED_COST modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancellationAccounting enumConstant=true synthetic=false
+FIELD owner=io.github.pzhin.sfqd.CancellationAccounting name=REFUND_CANCELLED_COST modifiers=[public, static, final] type=io.github.pzhin.sfqd.CancellationAccounting enumConstant=true synthetic=false
 FIELD owner=io.github.pzhin.sfqd.CloseFlowResult name=CLOSED modifiers=[public, static, final] type=io.github.pzhin.sfqd.CloseFlowResult enumConstant=true synthetic=false
 FIELD owner=io.github.pzhin.sfqd.CloseFlowResult name=FAIRNESS_DEBT_ACTIVE modifiers=[public, static, final] type=io.github.pzhin.sfqd.CloseFlowResult enumConstant=true synthetic=false
 FIELD owner=io.github.pzhin.sfqd.CloseFlowResult name=FLOW_ACTIVE modifiers=[public, static, final] type=io.github.pzhin.sfqd.CloseFlowResult enumConstant=true synthetic=false

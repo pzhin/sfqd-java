@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class ReferenceAdmissionTest {
@@ -117,6 +118,49 @@ final class ReferenceAdmissionTest {
         assertNotEquals(oldHandle, newHandle);
         assertEquals(EnqueueResult.Rejected.FLOW_NOT_REGISTERED,
                 model.enqueue(oldHandle, "stale", new Object(), 1L));
+    }
+
+    @Test
+    void reachableRefundClosureTraceRejectsProspectiveCancellationOverflowWithoutMutation() {
+        ReferenceScheduler<String, String, Object> model =
+                new ReferenceScheduler<>(RefundNumericRegressionTrace.config());
+        FlowHandle anchor = registered(model.registerFlow("anchor", 1L));
+        JobHandle anchorJob = accepted(model.enqueue(anchor, "anchor", new Object(), 1L));
+        assertSame(anchorJob, model.dispatchUpTo(1).get(0).jobHandle());
+        int enqueueAttempts = 1;
+
+        int builderId = 0;
+        for (long weight : RefundNumericRegressionTrace.builderWeights()) {
+            FlowHandle builder = registered(model.registerFlow("builder-" + builderId, weight));
+            JobHandle firstBuilder = accepted(model.enqueue(
+                    builder, "builder-" + builderId + "-first", new Object(), 1L));
+            JobHandle secondBuilder = accepted(model.enqueue(
+                    builder, "builder-" + builderId + "-second", new Object(), 1L));
+            enqueueAttempts += 2;
+            assertSame(firstBuilder, model.dispatchUpTo(1).get(0).jobHandle());
+            assertEquals(CompletionResult.COMPLETED, model.complete(firstBuilder));
+            assertSame(secondBuilder, model.dispatchUpTo(1).get(0).jobHandle());
+            assertEquals(CompletionResult.COMPLETED, model.complete(secondBuilder));
+            builderId++;
+        }
+
+        FlowHandle target = registered(model.registerFlow("target", 6L));
+        JobHandle first = accepted(model.enqueue(target, "first", new Object(), 3L));
+        enqueueAttempts++;
+        SchedulerSnapshot before = model.snapshot();
+        List<JobHandle> queuedBefore = model.queuedHandles();
+        assertEquals(1, before.runningJobs());
+        assertEquals(1, before.queuedJobs());
+        assertEquals(132L, before.acceptedTotal());
+
+        assertEquals(EnqueueResult.Rejected.NUMERIC_LIMIT,
+                model.enqueue(target, "rejected", new Object(), 1L));
+        enqueueAttempts++;
+        assertEquals(RefundNumericRegressionTrace.ENQUEUE_ATTEMPTS, enqueueAttempts);
+        assertEquals(before, model.snapshot());
+        assertEquals(queuedBefore, model.queuedHandles());
+        assertEquals(List.of(first), queuedBefore);
+        assertEquals(CancelResult.CANCELLED, model.cancel(first));
     }
 
     private static ReferenceScheduler<String, String, Object> model(int depth, int maxFlows, int maxJobs) {

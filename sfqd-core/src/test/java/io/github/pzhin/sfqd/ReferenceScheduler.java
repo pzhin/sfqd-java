@@ -100,6 +100,10 @@ final class ReferenceScheduler<F, J, P> {
         }
         ExactRational start = virtualTime.max(flow.lastFinish);
         ExactRational finish = start.add(ExactRational.of(cost, flow.weight));
+        if (config.cancellationAccounting() == CancellationAccounting.REFUND_CANCELLED_COST
+                && !refundClosed(flowHandle, flow, start, cost)) {
+            return EnqueueResult.Rejected.NUMERIC_LIMIT;
+        }
         long sequence = lastJobSequence + 1L;
         JobHandle handle = new JobHandle(ownerToken, sequence);
         QueuedJob<F, J, P> job = new QueuedJob<>(
@@ -141,11 +145,24 @@ final class ReferenceScheduler<F, J, P> {
 
     CancelResult cancel(JobHandle handle) {
         Objects.requireNonNull(handle, "handle");
-        QueuedJob<F, J, P> job = queued.remove(handle);
+        QueuedJob<F, J, P> job = queued.get(handle);
         if (job != null) {
             priority.remove(handle);
-            liveById.remove(job.jobId);
             FlowState<F> flow = registeredFlows.get(job.flowHandle);
+            if (config.cancellationAccounting() == CancellationAccounting.REFUND_CANCELLED_COST) {
+                ExactRational nextFinish = virtualTime.max(job.start);
+                for (QueuedJob<F, J, P> later : queued.values()) {
+                    if (later.flowHandle.equals(job.flowHandle) && later.sequence > job.sequence) {
+                        later.start = nextFinish;
+                        later.finish = nextFinish.add(ExactRational.of(later.cost, flow.weight));
+                        nextFinish = later.finish;
+                    }
+                }
+                flow.lastFinish = nextFinish;
+                priority.sort(this::compareQueued);
+            }
+            queued.remove(handle);
+            liveById.remove(job.jobId);
             flow.queuedCount--;
             flow.cancelledCost = flow.cancelledCost.add(BigInteger.valueOf(job.cost));
             cancelled++;
@@ -228,6 +245,63 @@ final class ReferenceScheduler<F, J, P> {
         return Objects.requireNonNull(queued.get(handle), "queued job");
     }
 
+    private boolean refundClosed(
+            FlowHandle flowHandle, FlowState<F> flow, ExactRational candidateStart, long candidateCost) {
+        ExactRational base = candidateStart;
+        for (QueuedJob<F, J, P> job : queued.values()) {
+            if (job.flowHandle.equals(flowHandle)) {
+                base = job.start;
+                break;
+            }
+        }
+        BigInteger commonDenominator = base.denominator();
+        for (QueuedJob<F, J, P> job : queued.values()) {
+            if (job.flowHandle.equals(flowHandle)) {
+                commonDenominator = lcm(commonDenominator,
+                        reducedIncrementDenominator(job.cost, flow.weight));
+                if (commonDenominator.bitLength() > ExactTag.MAX_PERSISTENT_BITS) {
+                    return false;
+                }
+            }
+        }
+        commonDenominator = lcm(commonDenominator,
+                reducedIncrementDenominator(candidateCost, flow.weight));
+        if (commonDenominator.bitLength() > ExactTag.MAX_PERSISTENT_BITS) {
+            return false;
+        }
+        BigInteger accumulatedNumerator = base.numerator()
+                .multiply(commonDenominator.divide(base.denominator()));
+        for (QueuedJob<F, J, P> job : queued.values()) {
+            if (job.flowHandle.equals(flowHandle)) {
+                accumulatedNumerator = addIncrementNumerator(
+                        accumulatedNumerator, commonDenominator, job.cost, flow.weight);
+            }
+        }
+        accumulatedNumerator = addIncrementNumerator(
+                accumulatedNumerator, commonDenominator, candidateCost, flow.weight);
+        return accumulatedNumerator.bitLength() <= ExactTag.MAX_PERSISTENT_BITS;
+    }
+
+    private static BigInteger reducedIncrementDenominator(long cost, long weight) {
+        BigInteger numerator = BigInteger.valueOf(cost);
+        BigInteger denominator = BigInteger.valueOf(weight);
+        return denominator.divide(numerator.gcd(denominator));
+    }
+
+    private static BigInteger addIncrementNumerator(
+            BigInteger accumulated, BigInteger commonDenominator, long cost, long weight) {
+        BigInteger numerator = BigInteger.valueOf(cost);
+        BigInteger denominator = BigInteger.valueOf(weight);
+        BigInteger divisor = numerator.gcd(denominator);
+        BigInteger reducedNumerator = numerator.divide(divisor);
+        BigInteger reducedDenominator = denominator.divide(divisor);
+        return accumulated.add(reducedNumerator.multiply(commonDenominator.divide(reducedDenominator)));
+    }
+
+    private static BigInteger lcm(BigInteger first, BigInteger second) {
+        return first.divide(first.gcd(second)).multiply(second);
+    }
+
     private int compareQueued(JobHandle first, JobHandle second) {
         QueuedJob<F, J, P> firstJob = queuedJob(first);
         QueuedJob<F, J, P> secondJob = queuedJob(second);
@@ -296,8 +370,8 @@ final class ReferenceScheduler<F, J, P> {
         private final F flowId;
         private final P payload;
         private final long cost;
-        private final ExactRational start;
-        private final ExactRational finish;
+        private ExactRational start;
+        private ExactRational finish;
         private final long sequence;
 
         private QueuedJob(

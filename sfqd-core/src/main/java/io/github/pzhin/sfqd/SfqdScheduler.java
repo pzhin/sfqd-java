@@ -18,8 +18,10 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>The scheduler only makes admission and dispatch decisions. It neither executes jobs nor owns an executor,
  * thread pool, resource pool, or completion callback. Fairness is measured against the caller-supplied cost and the
  * registered flow weight, not against unknown actual execution time.
- * Completed-work fairness guarantees do not apply to traces containing cancellation because the supported
- * {@link CancellationAccounting#CHARGE_RESERVED_COST} policy retains cancelled jobs' virtual cost until global idle.
+ * Completed-work fairness guarantees do not apply to traces containing cancellation. The default
+ * {@link CancellationAccounting#CHARGE_RESERVED_COST} policy retains cancelled jobs' virtual cost until global idle;
+ * the opt-in {@link CancellationAccounting#REFUND_CANCELLED_COST} policy changes only future queued tags and does not
+ * revise earlier dispatch decisions.
  *
  * <p>All public operations are linearizable and may be invoked concurrently without external synchronization. This
  * baseline uses one private lock: a successful mutating operation linearizes when its complete state transition is
@@ -29,10 +31,14 @@ import java.util.concurrent.locks.ReentrantLock;
  * {@link CancelResult#NOT_LIVE} alone intentionally does not reveal the terminal cause. Completion and cancellation
  * successes are exactly once.
  *
- * <p>Queued jobs are linked per flow and only each flow head is globally ordered. Enqueue and cancellation of a flow
- * head are {@code O(log B)} for {@code B} backlogged flows; cancellation of a non-head and completion are expected
- * {@code O(1)}. A batch selecting {@code m} jobs is {@code O(m log B + m)}. Snapshot is {@code O(1)}. The normative
- * idle reset is {@code O(registeredFlows)}. A canonically triggered exact-tag rebase is
+ * <p>Queued jobs are linked per flow and only each flow head is globally ordered. Under charge-reserved accounting,
+ * enqueue and cancellation of a flow head are {@code O(log B)} for {@code B} backlogged flows; cancellation of a
+ * non-head is expected {@code O(1)}. Under refund accounting, enqueue scans the {@code K} queued jobs of its flow to
+ * reserve numeric budget and costs {@code O(K + log B)} when it creates a backlogged head or {@code O(K)} otherwise.
+ * Refund cancellation costs {@code O(K + log B)} when the indexed head changes and {@code O(K)} otherwise, for the
+ * suffix of {@code K} later jobs. Completion is expected {@code O(1)}. A batch selecting {@code m} jobs is
+ * {@code O(m log B + m)}. Snapshot is {@code O(1)}. The normative idle reset is
+ * {@code O(registeredFlows)}. A canonically triggered exact-tag rebase is
  * {@code O(queuedJobs + registeredFlows)} and is computed transactionally before it becomes observable. Internal
  * records are bounded by configured live-job and registration limits; terminal tombstones are not retained.
  *
@@ -172,6 +178,10 @@ public final class SfqdScheduler<F, J, P> {
      * tag, and every registered flow finish tag, then admission is retried. The rebase and accepted job commit as one
      * transition only when all transient and persistent results fit. Otherwise {@code NUMERIC_LIMIT} discards the
      * entire temporary computation: no tag, index, counter, sequence, or other observable state changes.
+     * Under {@link CancellationAccounting#REFUND_CANCELLED_COST}, admission additionally verifies that every tag
+     * reachable by later queued cancellations fits the same budget. This check scans the prospective flow queue and
+     * can return {@code NUMERIC_LIMIT} even when the candidate's immediate start and finish tags fit. A planned rebase
+     * must preserve this property for every affected queued flow or the whole enqueue remains a no-op.
      *
      * @param flowHandle registered flow capability
      * @param jobId stable non-null identifier, unique among live jobs
@@ -211,6 +221,10 @@ public final class SfqdScheduler<F, J, P> {
             if (computation == null) {
                 return EnqueueResult.Rejected.NUMERIC_LIMIT;
             }
+            if (config.cancellationAccounting() == CancellationAccounting.REFUND_CANCELLED_COST
+                    && !refundClosureFitsAfterEnqueue(flow, computation.start, cost, computation.rebase)) {
+                return EnqueueResult.Rejected.NUMERIC_LIMIT;
+            }
             if (computation.rebase != null) {
                 commitRebase(computation.rebase);
             }
@@ -242,11 +256,13 @@ public final class SfqdScheduler<F, J, P> {
      * {@code NOT_LIVE} alone does not identify the winner or terminal cause.
      *
      * <p><strong>Fairness accounting warning:</strong> under
-     * {@link CancellationAccounting#CHARGE_RESERVED_COST}, cancellation does not reduce the flow's finish history and
-     * does not recompute tags of its later jobs. The cancelled supplied cost remains a virtual charge until all live
-     * jobs leave the scheduler and the global busy period ends. Completed-work fairness guarantees therefore do not
-     * apply to traces containing cancellation. Workloads with frequent deadline or timeout cancellations must account
-     * for the resulting dispatch delay.
+     * {@link CancellationAccounting#CHARGE_RESERVED_COST}, cancellation does not reduce the flow's finish history or
+     * recompute later tags, so the cancelled cost remains charged until global idle. Under
+     * {@link CancellationAccounting#REFUND_CANCELLED_COST}, cancellation recomputes every later queued job of the same
+     * flow from the cancelled job's start and updates the flow's finish history. Admission has already reserved the
+     * exact-arithmetic budget, so a queued cancellation has no numeric rejection or fallback. Recalculation occurs
+     * under the scheduler lock, does not change other flows, and does not revise earlier dispatch decisions.
+     * Completed-work fairness guarantees do not apply to cancellation traces under either policy.
      *
      * @param handle opaque job capability
      * @return cancellation outcome at the operation's linearization point
@@ -258,7 +274,10 @@ public final class SfqdScheduler<F, J, P> {
         try {
             QueuedJob<F, J, P> job = queued.get(handle);
             if (job != null) {
-                removeQueued(job);
+                RefundPlan<F, J, P> refund = config.cancellationAccounting()
+                        == CancellationAccounting.REFUND_CANCELLED_COST
+                        ? prepareRefund(job) : null;
+                removeQueued(job, refund);
                 queued.remove(handle);
                 liveById.remove(job.jobId);
                 job.flow.cancelledCost = job.flow.cancelledCost.add(BigInteger.valueOf(job.cost));
@@ -436,6 +455,113 @@ public final class SfqdScheduler<F, J, P> {
         return new RebasePlan<>(flowTags, jobTags);
     }
 
+    private boolean refundClosureFitsAfterEnqueue(
+            FlowState<F, J, P> target,
+            ExactTag candidateStart,
+            long candidateCost,
+            RebasePlan<F, J, P> rebase) {
+        if (rebase == null) {
+            return refundClosureFits(target, candidateStart, candidateCost, null);
+        }
+        for (FlowState<F, J, P> flow : registeredFlows.values()) {
+            if (flow.head == null && flow != target) {
+                continue;
+            }
+            if (!refundClosureFits(
+                    flow,
+                    flow == target ? candidateStart : null,
+                    flow == target ? candidateCost : 0L,
+                    rebase)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean refundClosureFits(
+            FlowState<F, J, P> flow,
+            ExactTag candidateStart,
+            long candidateCost,
+            RebasePlan<F, J, P> rebase) {
+        ExactTag base = flow.head == null ? candidateStart : plannedTags(flow.head, rebase).start;
+        if (base == null) {
+            throw new AssertionError("refund closure requires a non-empty prospective chain");
+        }
+        BigInteger commonDenominator = base.denominator();
+        for (QueuedJob<F, J, P> job = flow.head; job != null; job = job.next) {
+            commonDenominator = lcm(commonDenominator,
+                    reducedIncrementDenominator(job.cost, flow.weight));
+            if (commonDenominator.bitLength() > ExactTag.MAX_PERSISTENT_BITS) {
+                return false;
+            }
+        }
+        if (candidateCost != 0L) {
+            commonDenominator = lcm(commonDenominator,
+                    reducedIncrementDenominator(candidateCost, flow.weight));
+            if (commonDenominator.bitLength() > ExactTag.MAX_PERSISTENT_BITS) {
+                return false;
+            }
+        }
+
+        BigInteger accumulatedNumerator = base.numerator()
+                .multiply(commonDenominator.divide(base.denominator()));
+        for (QueuedJob<F, J, P> job = flow.head; job != null; job = job.next) {
+            accumulatedNumerator = addIncrementNumerator(
+                    accumulatedNumerator, commonDenominator, job.cost, flow.weight);
+        }
+        if (candidateCost != 0L) {
+            accumulatedNumerator = addIncrementNumerator(
+                    accumulatedNumerator, commonDenominator, candidateCost, flow.weight);
+        }
+        return accumulatedNumerator.bitLength() <= ExactTag.MAX_PERSISTENT_BITS;
+    }
+
+    private static BigInteger reducedIncrementDenominator(long cost, long weight) {
+        BigInteger numerator = BigInteger.valueOf(cost);
+        BigInteger denominator = BigInteger.valueOf(weight);
+        return denominator.divide(numerator.gcd(denominator));
+    }
+
+    private static BigInteger addIncrementNumerator(
+            BigInteger accumulated, BigInteger commonDenominator, long cost, long weight) {
+        BigInteger numerator = BigInteger.valueOf(cost);
+        BigInteger denominator = BigInteger.valueOf(weight);
+        BigInteger divisor = numerator.gcd(denominator);
+        BigInteger reducedNumerator = numerator.divide(divisor);
+        BigInteger reducedDenominator = denominator.divide(divisor);
+        return accumulated.add(reducedNumerator.multiply(commonDenominator.divide(reducedDenominator)));
+    }
+
+    private static BigInteger lcm(BigInteger first, BigInteger second) {
+        return first.divide(first.gcd(second)).multiply(second);
+    }
+
+    private static TagPair plannedTags(QueuedJob<?, ?, ?> job, RebasePlan<?, ?, ?> rebase) {
+        if (rebase == null) {
+            return new TagPair(job.start, job.finish);
+        }
+        TagPair tags = rebase.jobTags.get(job);
+        if (tags == null) {
+            throw new AssertionError("rebase plan must contain every queued job");
+        }
+        return tags;
+    }
+
+    private RefundPlan<F, J, P> prepareRefund(QueuedJob<F, J, P> cancelledJob) {
+        try {
+            ExactTag nextFinish = virtualTime.max(cancelledJob.start);
+            Map<QueuedJob<F, J, P>, TagPair> suffixTags = new IdentityHashMap<>();
+            for (QueuedJob<F, J, P> job = cancelledJob.next; job != null; job = job.next) {
+                ExactTag finish = nextFinish.add(ExactTag.fromCostAndWeight(job.cost, job.flow.weight));
+                suffixTags.put(job, new TagPair(nextFinish, finish));
+                nextFinish = finish;
+            }
+            return new RefundPlan<>(nextFinish, suffixTags);
+        } catch (NumericLimitException impossible) {
+            throw new AssertionError("refund-closed queued chain exceeded its reserved numeric budget", impossible);
+        }
+    }
+
     private void commitRebase(RebasePlan<F, J, P> rebase) {
         // TreeSet's SortedSet copy path is linear. Every queued start tag receives the same subtraction, so the
         // existing (start, sequence) order remains valid after the prevalidated tag replacements below.
@@ -467,7 +593,7 @@ public final class SfqdScheduler<F, J, P> {
         flow.queuedCount++;
     }
 
-    private void removeQueued(QueuedJob<F, J, P> job) {
+    private void removeQueued(QueuedJob<F, J, P> job, RefundPlan<F, J, P> refund) {
         FlowState<F, J, P> flow = job.flow;
         boolean removesHead = job.previous == null;
         if (removesHead) {
@@ -484,6 +610,13 @@ public final class SfqdScheduler<F, J, P> {
             job.next.previous = job.previous;
         }
         flow.queuedCount--;
+        if (refund != null) {
+            for (Map.Entry<QueuedJob<F, J, P>, TagPair> entry : refund.suffixTags.entrySet()) {
+                entry.getKey().start = entry.getValue().start;
+                entry.getKey().finish = entry.getValue().finish;
+            }
+            flow.lastFinish = refund.lastFinish;
+        }
         if (removesHead && flow.head != null) {
             requireIndexChange(backlogged.add(flow.head), "promoted flow head was already indexed");
         }
@@ -630,6 +763,16 @@ public final class SfqdScheduler<F, J, P> {
                 Map<QueuedJob<F, J, P>, TagPair> jobTags) {
             this.flowTags = flowTags;
             this.jobTags = jobTags;
+        }
+    }
+
+    private static final class RefundPlan<F, J, P> {
+        private final ExactTag lastFinish;
+        private final Map<QueuedJob<F, J, P>, TagPair> suffixTags;
+
+        private RefundPlan(ExactTag lastFinish, Map<QueuedJob<F, J, P>, TagPair> suffixTags) {
+            this.lastFinish = lastFinish;
+            this.suffixTags = suffixTags;
         }
     }
 

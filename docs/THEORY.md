@@ -79,6 +79,8 @@ The Java library makes the unspecified parts explicit:
 - every public operation is linearizable;
 - equal start tags use admission order as a stable FIFO tie-break;
 - cancellation succeeds only before dispatch;
+- charge-reserved cancellation is the default, while opt-in refund cancellation
+  prospectively removes queued virtual cost from later work of the same flow;
 - handles are opaque and scheduler-specific;
 - counts, sequences, and exact-number sizes are bounded and fail closed;
 - rejected operations are atomic no-ops;
@@ -88,6 +90,28 @@ The Java library makes the unspecified parts explicit:
 The last rule is an equivalent busy-period normalization described for SFQ.
 It prevents old virtual debt from growing forever across periods with no live
 work while preserving the ordering within each busy period.
+
+### Cancellation policies and claims
+
+Cancellation is a library extension rather than a result supplied by the SFQ
+or SFQ(D) papers. The default policy keeps the tags assigned at admission, so a
+cancelled queued cost remains virtual debt until global idle. The opt-in refund
+policy instead recomputes the later queued suffix of that flow at the
+cancellation linearization point. It does not undo an earlier dispatch or
+rewrite virtual-time history.
+
+Exact refund must not turn cancellation into a fallible cleanup operation. The
+refund policy therefore narrows admission: before accepting a job, the library
+proves that all tags reachable by removing any subset of the queued costs fit
+the fixed exact-number budget. Positivity makes the full queued sum the largest
+candidate numerator, and a common denominator covers every subset. Numeric
+failure is reported by enqueue, while every accepted queued job remains safely
+cancellable.
+
+Neither cancellation extension automatically inherits the papers'
+completed-work fairness bound. Charge-reserved debt is not completed service,
+and prospective refund changes future tags without revising past scheduling
+decisions. A claim for cancellation intervals would require a separate proof.
 
 ## Starvation and progress
 

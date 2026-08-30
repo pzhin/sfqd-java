@@ -42,11 +42,14 @@ final class ApiVocabularyTest {
         SchedulerConfig defaultConfig = new SchedulerConfig(8, 10, 20);
         SchedulerConfig explicitConfig = new SchedulerConfig(
                 8, 10, 20, CancellationAccounting.CHARGE_RESERVED_COST);
+        SchedulerConfig refundConfig = new SchedulerConfig(
+                8, 10, 20, CancellationAccounting.REFUND_CANCELLED_COST);
 
         assertEquals(CancellationAccounting.CHARGE_RESERVED_COST, defaultConfig.cancellationAccounting());
         assertEquals(WeightDomain.unrestricted(), defaultConfig.weightDomain());
         assertEquals(defaultConfig, explicitConfig);
-        assertEquals(1, CancellationAccounting.values().length);
+        assertEquals(CancellationAccounting.REFUND_CANCELLED_COST, refundConfig.cancellationAccounting());
+        assertEquals(2, CancellationAccounting.values().length);
     }
 
     @Test

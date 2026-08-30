@@ -3,8 +3,8 @@ package io.github.pzhin.sfqd;
 /**
  * Defines how a successful queued-job cancellation affects virtual fairness accounting.
  *
- * <p>The current implementation supports only {@link #CHARGE_RESERVED_COST}. The explicit policy prevents a queued
- * cancellation from being mistaken for a free rollback of the job's scheduling tags.
+ * <p>{@link #CHARGE_RESERVED_COST} preserves accepted virtual debt and remains the default.
+ * {@link #REFUND_CANCELLED_COST} is opt-in and prospectively recomputes later queued work of the same flow.
  */
 public enum CancellationAccounting {
     /**
@@ -15,5 +15,14 @@ public enum CancellationAccounting {
      * performs its global idle reset. Completed-work fairness guarantees do not apply to traces containing a
      * cancellation.
      */
-    CHARGE_RESERVED_COST
+    CHARGE_RESERVED_COST,
+
+    /**
+     * Refunds a cancelled queued job's virtual cost from later queued work of the same flow.
+     *
+     * <p>Admission reserves sufficient exact-arithmetic budget so every later queued cancellation can recompute the
+     * affected suffix without a numeric failure. Cancellation does not revise earlier dispatch decisions, and
+     * completed-work fairness guarantees do not apply to traces containing cancellation.
+     */
+    REFUND_CANCELLED_COST
 }
