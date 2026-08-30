@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.1.0 - 2026-08-30
+
+Adds opt-in virtual-cost refunds for queued cancellation while preserving the
+original charged-cost behavior as the default.
+
+### Added
+
+- `CancellationAccounting.REFUND_CANCELLED_COST` for callers that need a
+  cancelled queued job's virtual cost returned to later queued work of the
+  same flow;
+- reference, differential, numeric-boundary, lifecycle, deterministic
+  concurrency, and jcstress coverage for refundable cancellation;
+- policy-aware JMH workloads for cancellation latency, cancel-and-replace
+  cycles, terminal idle reset, and first-busy-period cycles.
+
+### Changed
+
+- refund-mode admission now reserves exact-rational capacity for every future
+  queued cancellation and rejects an unsafe enqueue atomically with
+  `NUMERIC_LIMIT`;
+- refund-mode queued cancellation recomputes only the later queued suffix of
+  the same flow and never revises an earlier dispatch decision;
+- benchmark fixture verification covers both cancellation policies.
+
+### Compatibility
+
+- `CHARGE_RESERVED_COST` remains the default and retains its previous
+  admission and cancellation behavior;
+- existing public signatures are unchanged; the public enum gains one
+  constant, so exhaustive client switches without a default may need updating;
+- completed-work fairness guarantees remain intentionally unspecified for
+  traces containing cancellation under either policy.
+
 ## 1.0.0 - 2026-08-23
 
 Initial public release of the generic, thread-safe SFQ(D) scheduler.
