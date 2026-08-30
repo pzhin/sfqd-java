@@ -240,7 +240,17 @@ class SfqdDeterministicConcurrencyTest {
 
     @Test
     void selectedCancelDispatchRaceReportsTheWinnerInCombinedHistory() {
-        SfqdScheduler<String, String, String> scheduler = scheduler(1, 1, 1);
+        assertSelectedCancelDispatchRace(CancellationAccounting.CHARGE_RESERVED_COST);
+    }
+
+    @Test
+    void selectedRefundCancelDispatchRaceReportsTheWinnerInCombinedHistory() {
+        assertSelectedCancelDispatchRace(CancellationAccounting.REFUND_CANCELLED_COST);
+    }
+
+    private static void assertSelectedCancelDispatchRace(CancellationAccounting policy) {
+        SfqdScheduler<String, String, String> scheduler =
+                new SfqdScheduler<>(new SchedulerConfig(1, 1, 1, policy));
         FlowHandle flow = registered(scheduler.registerFlow("flow", 1L));
         JobHandle victim = accepted(scheduler.enqueue(flow, "victim", "p", 1L));
 

@@ -22,12 +22,14 @@ class SfqdDifferentialProperties {
     void boundedProductionMatchesUnboundedReferenceForEverySmallTrace(
             @ForAll("depths") int depth,
             @ForAll @Size(min = 50, max = 180) List<@IntRange(min = -10_000, max = 10_000) Integer> commands) {
-        Harness harness = new Harness(depth);
+        for (CancellationAccounting policy : CancellationAccounting.values()) {
+            Harness harness = new Harness(depth, policy);
 
-        for (int event = 0; event < commands.size(); event++) {
-            harness.apply(commands.get(event), event);
-            assertEquals(harness.reference.snapshot(), harness.production.snapshot());
-            harness.assertFlowSnapshotsEqual();
+            for (int event = 0; event < commands.size(); event++) {
+                harness.apply(commands.get(event), event);
+                assertEquals(harness.reference.snapshot(), harness.production.snapshot());
+                harness.assertFlowSnapshotsEqual();
+            }
         }
     }
 
@@ -69,8 +71,8 @@ class SfqdDifferentialProperties {
         private final List<JobPair> jobs = new ArrayList<>();
         private final Map<JobHandle, JobHandle> referenceToProduction = new HashMap<>();
 
-        private Harness(int depth) {
-            config = new SchedulerConfig(depth, 8, 24);
+        private Harness(int depth, CancellationAccounting policy) {
+            config = new SchedulerConfig(depth, 8, 24, policy);
             reference = new ReferenceScheduler<>(config);
             production = new SfqdScheduler<>(config);
             ReferenceScheduler<String, String, Payload> foreignReference = new ReferenceScheduler<>(config);

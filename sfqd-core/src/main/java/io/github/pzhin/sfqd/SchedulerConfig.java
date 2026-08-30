@@ -13,13 +13,18 @@ import java.util.Objects;
  * {@code [0, depth]}, registered flows are in {@code [0, maxFlows]}, and
  * queued plus running jobs are in {@code [0, maxLiveJobs]}.
  *
+ * <p>{@link CancellationAccounting#CHARGE_RESERVED_COST} retains the historical admission domain and is selected by
+ * the three-argument constructor. The opt-in {@link CancellationAccounting#REFUND_CANCELLED_COST} policy may reject
+ * an otherwise representable enqueue with {@link EnqueueResult.Rejected#NUMERIC_LIMIT} when the complete prospective
+ * flow queue would not reserve enough exact-arithmetic budget for every later cancellation.
+ *
  * @param depth maximum dispatched-but-not-completed issue depth, in
  *        {@code [1, 1_000_000]}
  * @param maxFlows maximum simultaneously registered flows, in
  *        {@code [1, Integer.MAX_VALUE]}
  * @param maxLiveJobs maximum queued plus running jobs, in
  *        {@code [depth, Integer.MAX_VALUE]}
- * @param cancellationAccounting virtual fairness accounting policy for cancelled queued jobs
+ * @param cancellationAccounting immutable virtual fairness accounting and admission policy for cancelled queued jobs
  * @param weightDomain registration policy for fixed flow weights
  */
 public record SchedulerConfig(

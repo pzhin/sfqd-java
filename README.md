@@ -223,23 +223,52 @@ dispatched, it must be completed.
 
 #### Cancellation accounting
 
-The only supported policy is
-`CancellationAccounting.CHARGE_RESERVED_COST`. Cancelling a queued job removes
-it from the queue and live-job indexes and releases its payload, but it does
-not roll back the job's reserved virtual cost:
+`CancellationAccounting.CHARGE_RESERVED_COST` remains the default for every
+constructor that does not receive an explicit policy. Cancelling a queued job
+removes it from the queue and live-job indexes and releases its payload, but it
+does not roll back the job's reserved virtual cost:
 
 - the flow's `lastFinish` tag is not reduced;
 - tags already assigned to later jobs of the flow are not recomputed;
 - the charge disappears only when the scheduler becomes globally idle and
   ends the current busy period.
 
-Consequently, completed-work fairness guarantees do not apply to any trace
-containing cancellation. Treat frequent deadline or timeout cancellations as
-a release blocker for an integration unless the resulting virtual charge and
-dispatch delay are acceptable for that workload.
+The opt-in alternative is:
 
-For example, consider two equal-weight flows in a new busy period. Keeping a
-job from B live prevents an idle reset:
+```java
+new SchedulerConfig(
+        issueDepth,
+        maxFlows,
+        maxLiveJobs,
+        CancellationAccounting.REFUND_CANCELLED_COST);
+```
+
+With `REFUND_CANCELLED_COST`, a successful queued cancellation removes that
+job's cost from future virtual debt. Every later queued job of the same flow is
+recomputed in enqueue order from the cancelled job's start tag, and the flow's
+finish history moves to the end of that recomputed suffix. Other flows do not
+change. The recomputation is one atomic transition under the scheduler's common
+lock; callers cannot observe a partial suffix.
+
+Refund admission is intentionally narrower. Before accepting a job, enqueue
+checks that the prospective flow queue has one common exact denominator and a
+maximum accumulated numerator within the 4096-bit persistent budget. This
+reserves enough numeric space for every later subset of queued cancellations.
+An otherwise representable enqueue can therefore return `NUMERIC_LIMIT` under
+the refund policy while the same enqueue remains accepted under the default
+charge-reserved policy. If enqueue attempts a canonical rebase, every affected
+queued flow must remain refund-closed or the complete enqueue is an atomic
+no-op. An already accepted queued job can always be cancelled without a numeric
+failure.
+
+Refund is prospective: dispatch decisions that linearized before cancellation
+are never revised. Consequently, the published completed-work fairness bound is
+not claimed for traces containing cancellation under either policy without a
+separate proof.
+
+For example, under the default charge-reserved policy, consider two
+equal-weight flows in a new busy period. Keeping a job from B live prevents an
+idle reset:
 
 ```text
 A: enqueue cost=1_000_000
@@ -327,7 +356,9 @@ new SchedulerConfig(
         CancellationAccounting.CHARGE_RESERVED_COST);
 ```
 
-No free-cancellation accounting policy is currently implemented.
+`REFUND_CANCELLED_COST` must always be selected explicitly. Existing
+constructors and configurations using `CHARGE_RESERVED_COST` retain their
+previous behavior and admission domain.
 
 The three- and four-argument forms preserve the unrestricted positive `long`
 weight domain. For production configurations with a known common scale, the
@@ -370,7 +401,9 @@ The scheduler rejects work rather than allocating without bound:
 
 An enqueue may perform one transactional normalization when exact tags approach
 their numeric budget. If the result still cannot fit, it returns
-`NUMERIC_LIMIT` without changing scheduler state.
+`NUMERIC_LIMIT` without changing scheduler state. Refund accounting additionally
+reserves numeric space for every later queued cancellation, so it may reject a
+larger portion of the otherwise valid admission domain.
 
 `1_000_000` is a representation and validation limit for `issueDepth`, not a
 practically tested scale. One `dispatchUpTo(k)` call is atomic, holds the
@@ -381,16 +414,21 @@ recorded run is reviewed for the target hardware and workload.
 
 ## Complexity
 
-Let `R` be registered flows, `Q` queued jobs, `B` backlogged flows, and `m` the
-number of jobs returned by one capacity call.
+Let `R` be registered flows, `Q` queued jobs, `B` backlogged flows, `K` jobs in
+the affected per-flow queue or suffix, and `m` the number of jobs returned by
+one capacity call.
 
 | Operation | Expected or worst-case time |
 | --- | ---: |
 | register or close flow | expected `O(1)` |
-| enqueue to a backlogged flow | expected `O(1)` |
-| enqueue that makes a flow backlogged | `O(log B)` |
-| cancel a non-head queued job | expected `O(1)` |
-| cancel a flow head | `O(log B)` |
+| charge-reserved enqueue to a backlogged flow | expected `O(1)` |
+| charge-reserved enqueue that makes a flow backlogged | `O(log B)` |
+| refund enqueue to a backlogged flow | `O(K)` |
+| refund enqueue that makes a flow backlogged | `O(K + log B)` |
+| charge-reserved cancel of a non-head queued job | expected `O(1)` |
+| charge-reserved cancel of a flow head | `O(log B)` |
+| refund cancel without changing the indexed head | `O(K)` |
+| refund cancel that changes the indexed head | `O(K + log B)` |
 | dispatch `m` jobs | `O(m log B + m)` |
 | ordinary completion | expected `O(1)` |
 | aggregate or per-flow snapshot | expected `O(1)` |
@@ -398,7 +436,9 @@ number of jobs returned by one capacity call.
 | rare exact-tag normalization | `O(Q + R)` time and temporary space |
 
 Retained state is `O(Q + running jobs + R)`. Terminal jobs and payloads are
-not retained as tombstones.
+not retained as tombstones. These are algorithmic complexity bounds, not
+measured performance claims; no throughput or latency claim is made for refund
+accounting without a preserved benchmark run.
 
 ## Verification and benchmarks
 

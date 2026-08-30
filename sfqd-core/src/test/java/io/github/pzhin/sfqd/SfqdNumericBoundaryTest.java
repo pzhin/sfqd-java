@@ -105,6 +105,32 @@ class SfqdNumericBoundaryTest {
     }
 
     @Test
+    void rebaseThatWouldBreakRefundClosureRejectsCompleteEnqueueWithoutMutation()
+            throws NumericLimitException, ReflectiveOperationException {
+        SfqdScheduler<String, String, String> scheduler = new SfqdScheduler<>(new SchedulerConfig(
+                1, 2, 3, CancellationAccounting.REFUND_CANCELLED_COST));
+        FlowHandle queuedFlow = registered(scheduler.registerFlow("queued", 6L));
+        FlowHandle targetFlow = registered(scheduler.registerFlow("target", 1L));
+        scheduler.enqueue(queuedFlow, "first", "p", 3L);
+        scheduler.enqueue(queuedFlow, "second", "p", 1L);
+
+        BigInteger limit = BigInteger.ONE.shiftLeft(ExactTag.MAX_PERSISTENT_BITS);
+        BigInteger denominator = limit.divide(BigInteger.valueOf(6L)).nextProbablePrime();
+        BigInteger targetNumerator = limit.subtract(denominator.divide(BigInteger.TWO));
+        BigInteger virtualNumerator = targetNumerator.subtract(BigInteger.ONE);
+        ExactTag virtualTime = ExactTag.fromComponents(virtualNumerator, denominator);
+        ExactTag targetFinish = ExactTag.fromComponents(targetNumerator, denominator);
+        NumericProbe.seedRefundRebaseFixture(
+                scheduler, queuedFlow, targetFlow, virtualTime, targetFinish,
+                ExactTag.fromCostAndWeight(10L, 1L));
+        NumericState before = NumericProbe.capture(scheduler);
+
+        assertEquals(EnqueueResult.Rejected.NUMERIC_LIMIT,
+                scheduler.enqueue(targetFlow, "rejected", "p", 1L));
+        assertEquals(before, NumericProbe.capture(scheduler));
+    }
+
+    @Test
     void sequenceExhaustionPrecedesNumericLimitForTheSameCandidate()
             throws NumericLimitException, ReflectiveOperationException {
         RejectionFixture fixture = rejectionFixture(true);
@@ -351,6 +377,29 @@ class SfqdNumericBoundaryTest {
         static void setLongForDeepState(Object target, String name, long value)
                 throws ReflectiveOperationException {
             setLong(target, name, value);
+        }
+
+        private static void seedRefundRebaseFixture(
+                SfqdScheduler<?, ?, ?> scheduler,
+                FlowHandle queuedFlow,
+                FlowHandle targetFlow,
+                ExactTag virtualTime,
+                ExactTag targetFinish,
+                ExactTag queuedBase) throws ReflectiveOperationException, NumericLimitException {
+            set(scheduler, "virtualTime", virtualTime);
+            Map<FlowHandle, Object> registered = map(scheduler, "registeredFlows");
+            Object queued = registered.get(queuedFlow);
+            Object first = get(queued, "head");
+            Object second = get(first, "next");
+            ExactTag half = ExactTag.fromCostAndWeight(3L, 6L);
+            ExactTag sixth = ExactTag.fromCostAndWeight(1L, 6L);
+            ExactTag firstFinish = queuedBase.add(half);
+            set(first, "start", queuedBase);
+            set(first, "finish", firstFinish);
+            set(second, "start", firstFinish);
+            set(second, "finish", firstFinish.add(sixth));
+            set(queued, "lastFinish", firstFinish.add(sixth));
+            set(registered.get(targetFlow), "lastFinish", targetFinish);
         }
 
         private static void shiftQueuedAndFlowState(

@@ -72,8 +72,10 @@ Fairness is defined in terms of `cost`, not unknown actual execution time.
   integer in `1..Integer.MAX_VALUE`.
 - `maxLiveJobs` — the explicit `queued + dispatched` limit, an integer in
   `D..Integer.MAX_VALUE`.
-- `cancellationAccounting` — the fixed policy
-  `CancellationAccounting.CHARGE_RESERVED_COST`; no alternative policy exists.
+- `cancellationAccounting` — either
+  `CancellationAccounting.CHARGE_RESERVED_COST` or the opt-in
+  `CancellationAccounting.REFUND_CANCELLED_COST`. Constructors that do not
+  receive this value explicitly select `CHARGE_RESERVED_COST`.
 - `weightDomain` — either unrestricted positive `long` weights or the positive
   divisors of one fixed common scale `W`.
 
@@ -230,6 +232,53 @@ charge-reserved cancellation policy can accumulate finish-tag debt during a
 continuous busy period. `NUMERIC_LIMIT` therefore remains a permitted enqueue
 result under a divisor-constrained domain.
 
+### 3.2.2 Refund-closed queued chains
+
+**Cancellation accounting design decision.** Under
+`REFUND_CANCELLED_COST`, successful admission MUST reserve enough of the
+existing persistent numeric budget for every future subset of queued-job
+cancellations to remain representable. The admission domain of this opt-in
+policy is therefore narrower than the admission domain of
+`CHARGE_RESERVED_COST`.
+
+For a non-empty queued chain of one flow, let `baseStart` be the start tag of
+its head and let `r_i = cost_i/weight` be each queued job's reduced exact
+increment in enqueue order. Define
+
+```text
+L = lcm(denominator(baseStart),
+        denominator(r_1), ..., denominator(r_n))
+
+A_0 = numerator(baseStart) * (L / denominator(baseStart))
+A_k = A_0 + sum(i=1..k,
+                numerator(r_i) * (L / denominator(r_i)))
+```
+
+The chain is **refund-closed** exactly when:
+
+```text
+bitLength(L) <= 4096
+bitLength(A_n) <= 4096
+```
+
+All increments are positive, so `A_n` is the maximum unreduced accumulated
+numerator. Removing any subset of queued increments can only decrease that
+numerator, and every resulting reduced denominator divides `L`. Consequently,
+every tag required by any later sequence of successful queued cancellations
+fits the persistent budget. Arithmetic over two such persistent values also
+fits the 8193-bit transient budget.
+
+For `REFUND_CANCELLED_COST`, `enqueue` MUST test the prospective complete chain,
+including the candidate job, before commit. Failure returns `NUMERIC_LIMIT` as
+an atomic no-op. A canonical rebase attempted for the ordinary trigger in §3.2
+MUST also leave every transformed queued chain refund-closed, including the
+candidate chain; otherwise the complete rebase-and-enqueue transaction returns
+`NUMERIC_LIMIT` without mutation. Failure of the additional refund-closure
+test alone does not trigger a rebase.
+
+`CHARGE_RESERVED_COST` does not perform this additional admission test and
+retains the pre-existing numeric admission domain.
+
 ### 3.3 Exact rebasing
 
 A rebase is a representational substitution of the same semantic state. Let
@@ -275,7 +324,8 @@ plain SFQ(D) described under
 Scheduler state is the tuple:
 
 ```text
-Config            = (D, maxFlows, maxLiveJobs)
+Config            = (D, maxFlows, maxLiveJobs, cancellationAccounting,
+                     weightDomain)
 ownerToken        = inert identity token of this instance
 V                 = virtual-time tag
 lastJobSequence   = last issued job long sequence, initially 0
@@ -389,6 +439,8 @@ In every observable state:
     runningSuppliedCost
         = sum(cost(job) for running jobs of this flow)
     ```
+16. Under `REFUND_CANCELLED_COST`, every non-empty queued flow chain is
+    refund-closed as defined in §3.2.2.
 
 ## 5. Lifecycles and identity
 
@@ -478,14 +530,21 @@ create a registration and does not accept a weight. A dormant registered flow
 uses its stored `lastFinish`, not zero; an inactive interval within a busy
 period therefore does not reset fairness history.
 
-Tags are fixed at enqueue. Later cancellation of another queued job MUST NOT
-recalculate the tags of remaining jobs or roll back `lastFinish`.
+Under `CHARGE_RESERVED_COST`, tags are fixed at enqueue. Later cancellation of
+another queued job MUST NOT recalculate the tags of remaining jobs or roll back
+`lastFinish`; the cancelled supplied cost remains a virtual charge until the
+end of the current global busy period.
 
-This last rule is a **cancellation design decision** absent from Jin04. It
-prevents retroactive changes to accepted scheduling decisions. Its cost is that
-a cancelled supplied cost remains a virtual charge until the end of the current
-global busy period; the published completed-work fairness bound is not claimed
-for intervals containing cancellation.
+Under `REFUND_CANCELLED_COST`, enqueue assigns the same initial tags, but §7.4
+prospectively recomputes later queued tags of the same flow after a successful
+cancellation. The refund changes only future scheduling state at the cancel
+linearization point. Earlier dispatch results and virtual-time observations are
+irreversible, so the result is not required to equal a history in which the
+cancelled job was never accepted.
+
+Both policies are **cancellation design decisions** absent from Jin04. The
+published completed-work fairness bound is not claimed for intervals containing
+cancellation under either policy without a separate proof.
 
 ### 6.2 Deterministic tie-breaking
 
@@ -575,7 +634,10 @@ Order of processing:
 5. If the job sequence is exhausted, return `SEQUENCE_EXHAUSTED`.
 6. Using the fixed registered weight and `lastFinish`, calculate exact `S` and
    `F`; when required, apply §3.3 transactionally to the complete necessary
-   state copy. If the budget remains violated, return `NUMERIC_LIMIT`.
+   state copy. Under `REFUND_CANCELLED_COST`, also apply the prospective
+   refund-closure checks from §3.2.2, including checks for every chain affected
+   by a planned rebase. If any applicable budget remains violated, return
+   `NUMERIC_LIMIT`.
 7. Create the inert JobHandle and queued record, insert it into all job indexes,
    increment the registered flow's `acceptedCost` by `cost`, and update the
    registered flow counts, `lastFinish`, scheduler-wide counters, and job
@@ -590,8 +652,11 @@ not consume a sequence.
 A null handle is an invalid argument. An opaque handle from another scheduler
 instance is treated as `NOT_LIVE`.
 
-- If the handle is in `Queued`, atomically remove the job from the queue,
-  priority, and `LiveById`; decrement the flow count, increment the registered
+- If the handle is in `Queued`, cancellation always succeeds. Under
+  `CHARGE_RESERVED_COST`, atomically remove the job from the queue, priority,
+  and `LiveById` without changing remaining tags or `lastFinish`. Under
+  `REFUND_CANCELLED_COST`, apply the prospective refund transition below.
+  Under both policies, decrement the flow count, increment the registered
   flow's `cancelledCost` by `cost(job)`, increment the scheduler-wide
   `cancelled` counter, release the payload, and return `CANCELLED`.
 - If the handle is in `Running`, change nothing and return
@@ -607,6 +672,28 @@ Registered flow state persists on deactivation. If the removed job was the
 scheduler's last live job, the same transition performs the §3.4 reset for all
 registrations. Cancellation does not return capacity because a queued job did
 not occupy any.
+
+For `REFUND_CANCELLED_COST`, let `c` be the queued job selected for
+cancellation. At the successful cancel LP:
+
+1. set `nextFinish := max(V, S(c))`;
+2. for every later queued job of the same flow in enqueue order, set
+   `S(job) := nextFinish`, then set
+   `F(job) := S(job) + cost(job)/weight(flow)`, and advance
+   `nextFinish := F(job)`;
+3. set `lastFinish(flow) := nextFinish`;
+4. remove `c` from the per-flow queue, queued/live indexes, and priority index;
+5. release its payload and update lifecycle and supplied-cost counters;
+6. if the indexed flow head changed, insert the new head into the global
+   priority index only after its recomputed tag is installed.
+
+The complete removal and suffix recomputation are one atomic transition under
+the scheduler's serialization boundary. No partially recomputed suffix is
+observable. The refund-closure invariant established at enqueue makes every
+exact cancellation computation fit the existing budgets, so `cancel` gains no
+numeric rejection or exception. Other flows and their tags do not change,
+intra-flow enqueue order is preserved, every queued `S` remains at least `V`,
+and no past `dispatchUpTo` result is reconsidered.
 
 ### 7.5 `dispatchUpTo(k)` / `dispatch(k)`
 
@@ -851,9 +938,12 @@ FlowHandle in this busy period uses `max(V,lastFinish)`. While
 identity. Once `V` reaches `lastFinish`, the registration can be closed safely
 without changing the start tag of the next possible job.
 
-The virtual charge of a cancelled job persists even after deactivation until
-the global idle reset. This is the intentional non-retroactive semantics of
-§6.1.
+Under `CHARGE_RESERVED_COST`, the virtual charge of a cancelled job persists
+even after deactivation until the global idle reset. Under
+`REFUND_CANCELLED_COST`, `lastFinish` is instead moved to the exact end of the
+remaining queued suffix at cancellation, while debt represented by already
+dispatched work is retained through the suffix base. Both behaviors follow
+§6.1 and §7.4.
 
 ### 9.4 Registered → closed
 
@@ -887,8 +977,11 @@ weights, finite per-flow maximum costs, and a publication-compatible trace:
 ```
 
 The units are supplied cost. This document does not claim the bound for
-intervals containing cancellation because a non-retroactive virtual charge is
-not completed work.
+intervals containing cancellation under either accounting policy. Reserved
+cost is not completed work under `CHARGE_RESERVED_COST`, while prospective
+refund changes future tags without revising earlier dispatch decisions under
+`REFUND_CANCELLED_COST`; neither extension inherits the published bound without
+a separate proof.
 
 No-starvation is claimed only under the preconditions in
 [Starvation and progress](THEORY.md#starvation-and-progress): a bounded

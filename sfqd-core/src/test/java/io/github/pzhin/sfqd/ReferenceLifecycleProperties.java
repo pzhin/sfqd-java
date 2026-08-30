@@ -22,9 +22,10 @@ final class ReferenceLifecycleProperties {
     void oneFlowDispatchIsWorkConservingAndConservesLifecycleCounts(
             @ForAll @IntRange(min = 1, max = 16) int depth,
             @ForAll @IntRange(min = 1, max = 64) int jobs,
-            @ForAll @IntRange(min = 0, max = 16) int requested) {
+            @ForAll @IntRange(min = 0, max = 16) int requested,
+            @ForAll("cancellationPolicies") CancellationAccounting policy) {
         ReferenceScheduler<String, Integer, Integer> model =
-                new ReferenceScheduler<>(new SchedulerConfig(depth, 1, Math.max(depth, jobs)));
+                new ReferenceScheduler<>(new SchedulerConfig(depth, 1, Math.max(depth, jobs), policy));
         FlowHandle flow = assertInstanceOf(
                 RegisterFlowResult.Registered.class, model.registerFlow("flow", 1L)).flowHandle();
         for (int index = 0; index < jobs; index++) {
@@ -44,8 +45,9 @@ final class ReferenceLifecycleProperties {
 
     @Property(tries = 200)
     void mixedCommandTraceConservesStateAfterEveryEvent(
-            @ForAll("commandTraces") List<Integer> commands) {
-        LifecycleHarness harness = new LifecycleHarness();
+            @ForAll("commandTraces") List<Integer> commands,
+            @ForAll("cancellationPolicies") CancellationAccounting policy) {
+        LifecycleHarness harness = new LifecycleHarness(policy);
         for (int command : commands) {
             harness.apply(command);
             harness.assertConservation();
@@ -63,6 +65,11 @@ final class ReferenceLifecycleProperties {
                     trace.addAll(randomCommands);
                     return List.copyOf(trace);
                 });
+    }
+
+    @Provide
+    Arbitrary<CancellationAccounting> cancellationPolicies() {
+        return Arbitraries.of(CancellationAccounting.values());
     }
 
     private enum JobPhase {
@@ -85,8 +92,7 @@ final class ReferenceLifecycleProperties {
         private static final String FIRST_FLOW = "first";
         private static final String SECOND_FLOW = "second";
 
-        private final ReferenceScheduler<String, Integer, Integer> model =
-                new ReferenceScheduler<>(new SchedulerConfig(2, 2, 8));
+        private final ReferenceScheduler<String, Integer, Integer> model;
         private final FlowHandle foreignFlow = new FlowHandle(new OwnerToken(), 1L);
         private final JobHandle foreignJob = new JobHandle(new OwnerToken(), 1L);
         private final Map<String, FlowHandle> flows = new LinkedHashMap<>();
@@ -97,6 +103,10 @@ final class ReferenceLifecycleProperties {
         private long dispatched;
         private long cancelled;
         private long completed;
+
+        private LifecycleHarness(CancellationAccounting policy) {
+            model = new ReferenceScheduler<>(new SchedulerConfig(2, 2, 8, policy));
+        }
 
         private void apply(int command) {
             switch (command) {

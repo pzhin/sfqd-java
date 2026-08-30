@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class ReferenceCancellationTest {
@@ -113,8 +114,111 @@ final class ReferenceCancellationTest {
         assertEquals(0, snapshot.runningJobs());
     }
 
+    @Test
+    void refundRecomputesHeadSuffixAndCanChangeGlobalOrderWithStableTies() {
+        ReferenceScheduler<String, String, Object> refund = refundModel(3, 2, 5);
+        FlowHandle refundA = registered(refund.registerFlow("a", 2L));
+        FlowHandle refundB = registered(refund.registerFlow("b", 1L));
+        JobHandle cancelled = accepted(refund.enqueue(refundA, "cancelled", new Object(), 4L));
+        JobHandle successor = accepted(refund.enqueue(refundA, "successor", new Object(), 2L));
+        JobHandle secondSuccessor = accepted(refund.enqueue(refundA, "second-successor", new Object(), 2L));
+        JobHandle competitor = accepted(refund.enqueue(refundB, "competitor", new Object(), 1L));
+
+        assertEquals(CancelResult.CANCELLED, refund.cancel(cancelled));
+        assertEquals(ExactRational.ZERO, refund.startTag(successor));
+        assertEquals(ExactRational.ONE, refund.finishTag(successor));
+        assertEquals(ExactRational.ONE, refund.startTag(secondSuccessor));
+        assertEquals(ExactRational.of(2L, 1L), refund.finishTag(secondSuccessor));
+        assertEquals(List.of(successor, competitor, secondSuccessor), refund.queuedHandles());
+
+        ReferenceScheduler<String, String, Object> charged = model(3, 2, 4);
+        FlowHandle chargedA = registered(charged.registerFlow("a", 2L));
+        FlowHandle chargedB = registered(charged.registerFlow("b", 1L));
+        JobHandle chargedCancelled = accepted(charged.enqueue(chargedA, "cancelled", new Object(), 4L));
+        JobHandle chargedSuccessor = accepted(charged.enqueue(chargedA, "successor", new Object(), 2L));
+        JobHandle chargedCompetitor = accepted(charged.enqueue(chargedB, "competitor", new Object(), 1L));
+
+        assertEquals(CancelResult.CANCELLED, charged.cancel(chargedCancelled));
+        assertEquals(ExactRational.of(2L, 1L), charged.startTag(chargedSuccessor));
+        assertEquals(List.of(chargedCompetitor, chargedSuccessor), charged.queuedHandles());
+    }
+
+    @Test
+    void refundOfMiddleAndTailPreservesFractionalOrderAndOtherFlows() {
+        ReferenceScheduler<String, String, Object> model = refundModel(3, 2, 6);
+        FlowHandle target = registered(model.registerFlow("target", 6L));
+        FlowHandle other = registered(model.registerFlow("other", 5L));
+        JobHandle first = accepted(model.enqueue(target, "first", new Object(), 1L));
+        JobHandle middle = accepted(model.enqueue(target, "middle", new Object(), 2L));
+        JobHandle tail = accepted(model.enqueue(target, "tail", new Object(), 3L));
+        JobHandle untouched = accepted(model.enqueue(other, "untouched", new Object(), 2L));
+        ExactRational otherStart = model.startTag(untouched);
+        ExactRational otherFinish = model.finishTag(untouched);
+
+        assertEquals(CancelResult.CANCELLED, model.cancel(middle));
+        assertEquals(ExactRational.of(1L, 6L), model.startTag(tail));
+        assertEquals(ExactRational.of(2L, 3L), model.finishTag(tail));
+        assertEquals(CancelResult.CANCELLED, model.cancel(tail));
+        JobHandle next = accepted(model.enqueue(target, "next", new Object(), 1L));
+
+        assertEquals(ExactRational.of(1L, 6L), model.startTag(next));
+        assertEquals(otherStart, model.startTag(untouched));
+        assertEquals(otherFinish, model.finishTag(untouched));
+        assertEquals(List.of(first, next), model.queuedHandles().stream()
+                .filter(handle -> handle.equals(first) || handle.equals(next)).toList());
+        assertEquals(new FlowSnapshot(2, 0, java.math.BigInteger.valueOf(7L),
+                java.math.BigInteger.ZERO, java.math.BigInteger.valueOf(5L), java.math.BigInteger.ZERO),
+                model.snapshot(target).orElseThrow());
+        assertEquals(5L, model.snapshot().acceptedTotal());
+        assertEquals(2L, model.snapshot().cancelledTotal());
+    }
+
+    @Test
+    void refundKeepsDispatchedDebtAndGlobalIdleStillResetsHistory() {
+        ReferenceScheduler<String, String, Object> model = refundModel(2, 2, 5);
+        FlowHandle target = registered(model.registerFlow("target", 2L));
+        FlowHandle progress = registered(model.registerFlow("progress", 1L));
+        JobHandle running = accepted(model.enqueue(target, "running", new Object(), 2L));
+        JobHandle cancelled = accepted(model.enqueue(target, "cancelled", new Object(), 4L));
+        assertSame(running, model.dispatchUpTo(1).get(0).jobHandle());
+
+        assertEquals(CancelResult.CANCELLED, model.cancel(cancelled));
+        JobHandle afterRefund = accepted(model.enqueue(target, "after-refund", new Object(), 2L));
+        assertEquals(ExactRational.ONE, model.startTag(afterRefund));
+        assertEquals(CancelResult.CANCELLED, model.cancel(afterRefund));
+        assertEquals(CompletionResult.COMPLETED, model.complete(running));
+
+        JobHandle reset = accepted(model.enqueue(progress, "reset", new Object(), 1L));
+        assertEquals(ExactRational.ZERO, model.startTag(reset));
+    }
+
+    @Test
+    void refundOfOnlyQueuedJobKeepsDispatchedDebtForCloseFlow() {
+        ReferenceScheduler<String, String, Object> model = refundModel(2, 2, 4);
+        FlowHandle target = registered(model.registerFlow("target", 1L));
+        FlowHandle progress = registered(model.registerFlow("progress", 1L));
+        JobHandle running = accepted(model.enqueue(target, "running", new Object(), 1L));
+        JobHandle cancelled = accepted(model.enqueue(target, "cancelled", new Object(), 5L));
+        assertSame(running, model.dispatchUpTo(1).get(0).jobHandle());
+        JobHandle progressFirst = accepted(model.enqueue(progress, "progress-1", new Object(), 1L));
+        JobHandle progressSecond = accepted(model.enqueue(progress, "progress-2", new Object(), 1L));
+
+        assertEquals(CancelResult.CANCELLED, model.cancel(cancelled));
+        assertEquals(CompletionResult.COMPLETED, model.complete(running));
+        assertEquals(CloseFlowResult.FAIRNESS_DEBT_ACTIVE, model.closeFlow(target));
+        assertSame(progressFirst, model.dispatchUpTo(1).get(0).jobHandle());
+        assertEquals(CompletionResult.COMPLETED, model.complete(progressFirst));
+        assertSame(progressSecond, model.dispatchUpTo(1).get(0).jobHandle());
+        assertEquals(CloseFlowResult.CLOSED, model.closeFlow(target));
+    }
+
     private static ReferenceScheduler<String, String, Object> model(int depth, int maxFlows, int maxJobs) {
         return new ReferenceScheduler<>(new SchedulerConfig(depth, maxFlows, maxJobs));
+    }
+
+    private static ReferenceScheduler<String, String, Object> refundModel(int depth, int maxFlows, int maxJobs) {
+        return new ReferenceScheduler<>(new SchedulerConfig(
+                depth, maxFlows, maxJobs, CancellationAccounting.REFUND_CANCELLED_COST));
     }
 
     private static FlowHandle registered(RegisterFlowResult result) {
