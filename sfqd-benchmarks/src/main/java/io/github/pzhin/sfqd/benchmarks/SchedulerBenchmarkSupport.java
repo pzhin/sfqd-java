@@ -1,6 +1,7 @@
 package io.github.pzhin.sfqd.benchmarks;
 
 import io.github.pzhin.sfqd.CancelResult;
+import io.github.pzhin.sfqd.CancellationAccounting;
 import io.github.pzhin.sfqd.CompletionResult;
 import io.github.pzhin.sfqd.Dispatch;
 import io.github.pzhin.sfqd.EnqueueResult;
@@ -119,6 +120,17 @@ public final class SchedulerBenchmarkSupport {
         }
 
         Fixture(int flowCount, int depth, Scenario scenario, int inactiveRegistrations, int minimumAnchors) {
+            this(flowCount, depth, scenario, inactiveRegistrations, minimumAnchors,
+                    CancellationAccounting.CHARGE_RESERVED_COST);
+        }
+
+        Fixture(
+                int flowCount,
+                int depth,
+                Scenario scenario,
+                int inactiveRegistrations,
+                int minimumAnchors,
+                CancellationAccounting cancellationAccounting) {
             if (flowCount < 1 || inactiveRegistrations < 0) {
                 throw new IllegalArgumentException("flow counts must be valid");
             }
@@ -129,7 +141,7 @@ public final class SchedulerBenchmarkSupport {
             int initiallyActive = expectedActiveFlows(flowCount, scenario);
             int plannedJobs = Math.addExact(Math.multiplyExact(initiallyActive, anchors), reserve);
             this.scheduler = new SfqdScheduler<>(new SchedulerConfig(
-                    depth, registered, Math.addExact(plannedJobs, depth + 64)));
+                    depth, registered, Math.addExact(plannedJobs, depth + 64), cancellationAccounting));
             this.flowIds = new ArrayList<>(registered);
             this.flowHandles = new ArrayList<>(registered);
             this.queuedByFlow = new ArrayList<>(registered);

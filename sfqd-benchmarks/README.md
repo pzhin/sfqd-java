@@ -12,8 +12,9 @@ establish production performance by existing in the repository.
 java -jar sfqd-benchmarks/target/sfqd-benchmarks.jar -l
 ```
 
-The Maven `verify` phase also runs a bounded 60-case idle-reset fixture smoke
-and three scale-fixture cases. The largest scale fixture uses `B=10_000`,
+The Maven `verify` phase also runs a bounded 90-case idle-reset fixture smoke
+covering both cancellation-accounting policies, and three scale-fixture cases.
+The largest scale fixture uses `B=10_000`,
 `Q=100_000`, and `depth=1_024`. These checks validate scheduler state and
 workload restoration; their execution time is not a benchmark result.
 
@@ -74,7 +75,11 @@ metric and the normalization.
 ### Cancellation cycles
 
 `CancellationCycleBenchmark` measures `cancel -> enqueue replacement`. The
-score belongs to the combined cycle, not cancellation alone.
+score belongs to the combined cycle, not cancellation alone. The
+`cancellationAccounting` parameter selects `CHARGE_RESERVED_COST` or
+`REFUND_CANCELLED_COST`; the same policy dimension is present in isolated
+head/non-head cancellation latency, terminal idle-reset cancellation, and
+first-busy-period cancellation-cycle workloads.
 
 ### First busy-period cycles
 

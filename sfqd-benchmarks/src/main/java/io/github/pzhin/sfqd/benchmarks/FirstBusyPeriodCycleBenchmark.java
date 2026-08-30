@@ -1,5 +1,6 @@
 package io.github.pzhin.sfqd.benchmarks;
 
+import io.github.pzhin.sfqd.CancellationAccounting;
 import io.github.pzhin.sfqd.benchmarks.IdleResetBenchmarkSupport.FirstBusyPeriodFixture;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -30,12 +31,16 @@ public class FirstBusyPeriodCycleBenchmark {
         @Param({"1", "256"})
         private int depth;
 
+        /** Cancellation accounting policy under measurement. */
+        @Param({"CHARGE_RESERVED_COST", "REFUND_CANCELLED_COST"})
+        private CancellationAccounting cancellationAccounting;
+
         private FirstBusyPeriodFixture fixture;
 
         /** Registers all flows and establishes the initial globally idle boundary. */
         @Setup(Level.Trial)
         public void setupTrial() {
-            fixture = new FirstBusyPeriodFixture(flowCount, depth);
+            fixture = new FirstBusyPeriodFixture(flowCount, depth, cancellationAccounting);
         }
 
         /** Verifies that every measured transaction conserved bounded idle state. */

@@ -6,6 +6,7 @@ import static io.github.pzhin.sfqd.benchmarks.SchedulerBenchmarkSupport.requireC
 import static io.github.pzhin.sfqd.benchmarks.SchedulerBenchmarkSupport.requireCompleted;
 
 import io.github.pzhin.sfqd.CancelResult;
+import io.github.pzhin.sfqd.CancellationAccounting;
 import io.github.pzhin.sfqd.CompletionResult;
 import io.github.pzhin.sfqd.Dispatch;
 import io.github.pzhin.sfqd.EnqueueResult;
@@ -248,6 +249,10 @@ public class OperationLatencyBenchmark {
         @Param({"HEAD", "NON_HEAD"})
         private CancelPosition position;
 
+        /** Cancellation accounting policy under measurement. */
+        @Param({"CHARGE_RESERVED_COST", "REFUND_CANCELLED_COST"})
+        private CancellationAccounting cancellationAccounting;
+
         private Fixture fixture;
         private JobRecord target;
         private CancelResult result;
@@ -258,7 +263,7 @@ public class OperationLatencyBenchmark {
         /** Builds per-flow queues with at least two entries. */
         @Setup(Level.Trial)
         public void setupTrial() {
-            fixture = new Fixture(flowCount(), depth(), scenario(), 0, 2);
+            fixture = new Fixture(flowCount(), depth(), scenario(), 0, 2, cancellationAccounting);
         }
 
         /** Selects a stable queued target without charging caller lookup to scheduler latency. */
@@ -429,13 +434,18 @@ public class OperationLatencyBenchmark {
         @Param({"1", "8", "64", "256"})
         private int depth;
 
+        /** Cancellation accounting policy under measurement. */
+        @Param({"CHARGE_RESERVED_COST", "REFUND_CANCELLED_COST"})
+        private CancellationAccounting cancellationAccounting;
+
         private TerminalFixture fixture;
         private CancelResult result;
 
         /** Establishes exactly one queued job while every other registered flow remains untagged. */
         @Setup(Level.Trial)
         public void setupTrial() {
-            fixture = new TerminalFixture(flowCount, depth, false, TerminalOperation.CANCEL);
+            fixture = new TerminalFixture(
+                    flowCount, depth, false, TerminalOperation.CANCEL, cancellationAccounting);
         }
 
         /** Validates the idle transition and restores the exact one-tagged boundary. */
@@ -523,13 +533,18 @@ public class OperationLatencyBenchmark {
         @Param({"1", "256"})
         private int depth;
 
+        /** Cancellation accounting policy under measurement. */
+        @Param({"CHARGE_RESERVED_COST", "REFUND_CANCELLED_COST"})
+        private CancellationAccounting cancellationAccounting;
+
         private TerminalFixture fixture;
         private CancelResult result;
 
         /** Tags every flow without ending the busy period and leaves the final job queued. */
         @Setup(Level.Trial)
         public void setupTrial() {
-            fixture = new TerminalFixture(flowCount, depth, true, TerminalOperation.CANCEL);
+            fixture = new TerminalFixture(
+                    flowCount, depth, true, TerminalOperation.CANCEL, cancellationAccounting);
         }
 
         /** Validates global idle and re-establishes the all-tagged boundary. */
