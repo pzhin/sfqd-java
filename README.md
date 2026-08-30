@@ -10,8 +10,8 @@ weights.
 
 ## Status
 
-Version 1.0.0 is the first stable release. The library is published to Maven
-Central as `io.github.pzhin:sfqd-core:1.0.0` and uses the Java package
+Version 1.1.0 is the current stable release. The library is published to Maven
+Central as `io.github.pzhin:sfqd-core:1.1.0` and uses the Java package
 `io.github.pzhin.sfqd`.
 
 The benchmark harness is an executable measurement protocol, not a benchmark
@@ -57,7 +57,7 @@ Then add it to a local consumer:
 <dependency>
   <groupId>io.github.pzhin</groupId>
   <artifactId>sfqd-core</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
 </dependency>
 ```
 
