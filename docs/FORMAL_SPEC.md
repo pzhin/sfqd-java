@@ -687,13 +687,29 @@ cancellation. At the successful cancel LP:
 6. if the indexed flow head changed, insert the new head into the global
    priority index only after its recomputed tag is installed.
 
-The complete removal and suffix recomputation are one atomic transition under
+The complete removal and logical suffix recomputation are one atomic transition under
 the scheduler's serialization boundary. No partially recomputed suffix is
 observable. The refund-closure invariant established at enqueue makes every
 exact cancellation computation fit the existing budgets, so `cancel` gains no
 numeric rejection or exception. Other flows and their tags do not change,
 intra-flow enqueue order is preserved, every queued `S` remains at least `V`,
 and no past `dispatchUpTo` result is reconsidered.
+
+An implementation may represent this exact transition lazily. While a flow is
+backlogged, every successor starts at its predecessor's finish: `V` cannot
+pass the indexed head. Therefore cancellation subtracts `cost(c)/weight`
+from `lastFinish`, preserves the head start (including head cancellation),
+and removes the cost from the live chain. Head promotion materializes the
+next exact tag without consulting the then-current `V`. This is a representation
+optimization, not a change to the above transition or admission domain.
+
+For incremental admission, with total queued cost `C` and gcd `G` of the
+individual costs, the increment-denominator lcm is `weight/gcd(weight,G)`.
+Combining this with the head denominator yields exactly the `L` in §3.2.2;
+the final numerator is `baseStart * L + C * L / weight` using exact rational
+scaling. The gcd must include individual costs, not only their sum. Deletion
+must remove obsolete denominator factors. A rebase still validates every
+logical queued tag and the transformed closure before any state is committed.
 
 ### 7.5 `dispatchUpTo(k)` / `dispatch(k)`
 

@@ -10,8 +10,8 @@ weights.
 
 ## Status
 
-Version 1.1.0 is the current stable release. The library is published to Maven
-Central as `io.github.pzhin:sfqd-core:1.1.0` and uses the Java package
+Version 1.2.0 is the current stable release. The library is published to Maven
+Central as `io.github.pzhin:sfqd-core:1.2.0` and uses the Java package
 `io.github.pzhin.sfqd`.
 
 The benchmark harness is an executable measurement protocol, not a benchmark
@@ -57,7 +57,7 @@ Then add it to a local consumer:
 <dependency>
   <groupId>io.github.pzhin</groupId>
   <artifactId>sfqd-core</artifactId>
-  <version>1.1.0</version>
+  <version>1.2.0</version>
 </dependency>
 ```
 
@@ -248,7 +248,8 @@ job's cost from future virtual debt. Every later queued job of the same flow is
 recomputed in enqueue order from the cancelled job's start tag, and the flow's
 finish history moves to the end of that recomputed suffix. Other flows do not
 change. The recomputation is one atomic transition under the scheduler's common
-lock; callers cannot observe a partial suffix.
+lock; callers cannot observe a partial suffix. The implementation represents
+this transition lazily and materializes tags when a job becomes the flow head.
 
 Refund admission is intentionally narrower. Before accepting a job, enqueue
 checks that the prospective flow queue has one common exact denominator and a
@@ -415,7 +416,7 @@ recorded run is reviewed for the target hardware and workload.
 ## Complexity
 
 Let `R` be registered flows, `Q` queued jobs, `B` backlogged flows, `K` jobs in
-the affected per-flow queue or suffix, and `m` the number of jobs returned by
+the affected per-flow queue, and `m` the number of jobs returned by
 one capacity call.
 
 | Operation | Expected or worst-case time |
@@ -423,17 +424,25 @@ one capacity call.
 | register or close flow | expected `O(1)` |
 | charge-reserved enqueue to a backlogged flow | expected `O(1)` |
 | charge-reserved enqueue that makes a flow backlogged | `O(log B)` |
-| refund enqueue to a backlogged flow | `O(K)` |
-| refund enqueue that makes a flow backlogged | `O(K + log B)` |
+| refund enqueue to a backlogged flow | `O(log K)` |
+| refund enqueue that makes a flow backlogged | `O(log K + log B)` |
 | charge-reserved cancel of a non-head queued job | expected `O(1)` |
 | charge-reserved cancel of a flow head | `O(log B)` |
-| refund cancel without changing the indexed head | `O(K)` |
-| refund cancel that changes the indexed head | `O(K + log B)` |
-| dispatch `m` jobs | `O(m log B + m)` |
+| refund cancel without changing the indexed head | `O(log K)` |
+| refund cancel that changes the indexed head | `O(log K + log B)` |
+| charge-reserved dispatch `m` jobs | `O(m log B + m)` |
+| refund dispatch `m` jobs | `O(m (log B + log K) + m)` |
 | ordinary completion | expected `O(1)` |
 | aggregate or per-flow snapshot | expected `O(1)` |
 | transition to global idle | `O(R)` |
 | rare exact-tag normalization | `O(Q + R)` time and temporary space |
+
+Refund accounting materializes tags only when a job becomes its flow's head.
+An AVL multiset of live queued costs maintains their exact sum and gcd, so
+ordinary admission and cancellation never scan the queue. Numeric admission
+and scheduling semantics are unchanged; rare canonical rebases still visit
+all queued jobs. Both snapshot methods take the scheduler lock but do not
+scan jobs.
 
 Retained state is `O(Q + running jobs + R)`. Terminal jobs and payloads are
 not retained as tombstones. These are algorithmic complexity bounds, not

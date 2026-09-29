@@ -153,7 +153,7 @@ Before running the profile, the release engineer must have:
 - an unlocked GnuPG agent, or `MAVEN_GPG_PASSPHRASE` supplied through a secure
   environment mechanism.
 
-Publish the immutable 1.1.0 coordinates from the commit tagged `v1.1.0`:
+Publish the immutable 1.2.0 coordinates from the commit tagged `v1.2.0`:
 
 ```shell
 ./mvnw --batch-mode --no-transfer-progress -Prelease clean deploy

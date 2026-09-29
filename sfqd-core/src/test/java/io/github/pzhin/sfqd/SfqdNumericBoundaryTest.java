@@ -90,6 +90,39 @@ class SfqdNumericBoundaryTest {
     }
 
     @Test
+    void refundRebaseMaterializesLogicalSuffixAfterMiddleCancellation()
+            throws NumericLimitException, ReflectiveOperationException {
+        SchedulerConfig config = new SchedulerConfig(2, 4, 8, CancellationAccounting.REFUND_CANCELLED_COST);
+        SfqdScheduler<String, String, String> scheduler = new SfqdScheduler<>(config);
+        ReferenceScheduler<String, String, String> reference = new ReferenceScheduler<>(config);
+        FlowHandles flows = registerFour(scheduler);
+        FlowHandles oracle = registerFour(reference);
+        assertInstanceOf(EnqueueResult.Accepted.class, scheduler.enqueue(flows.first, "a1", "p", 1L));
+        JobHandle middle = accepted(scheduler.enqueue(flows.first, "a2", "p", 7L));
+        assertInstanceOf(EnqueueResult.Accepted.class, scheduler.enqueue(flows.first, "a3", "p", 2L));
+        assertInstanceOf(EnqueueResult.Accepted.class, scheduler.enqueue(flows.second, "b1", "p", 1L));
+        assertInstanceOf(EnqueueResult.Accepted.class, reference.enqueue(oracle.first, "a1", "p", 1L));
+        JobHandle oracleMiddle = accepted(reference.enqueue(oracle.first, "a2", "p", 7L));
+        assertInstanceOf(EnqueueResult.Accepted.class, reference.enqueue(oracle.first, "a3", "p", 2L));
+        assertInstanceOf(EnqueueResult.Accepted.class, reference.enqueue(oracle.second, "b1", "p", 1L));
+        assertEquals(reference.cancel(oracleMiddle), scheduler.cancel(middle));
+        BigInteger baseInteger = BigInteger.ONE.shiftLeft(4095);
+        ExactTag base = ExactTag.fromComponents(baseInteger, BigInteger.ONE);
+        ExactTag targetFinish = ExactTag.fromComponents(
+                BigInteger.ONE.shiftLeft(4096).subtract(BigInteger.ONE), BigInteger.ONE);
+        NumericProbe.shiftQueuedAndFlowState(scheduler, base, flows, targetFinish);
+        NumericProbe.setReferenceLastFinish(reference, oracle.target,
+                ExactRational.of(baseInteger.subtract(BigInteger.ONE), BigInteger.ONE));
+        assertInstanceOf(EnqueueResult.Accepted.class, scheduler.enqueue(flows.target, "target", "p", 1L));
+        assertInstanceOf(EnqueueResult.Accepted.class, reference.enqueue(oracle.target, "target", "p", 1L));
+        assertEquals(ExactTag.zero(), NumericProbe.capture(scheduler).virtualTime);
+        while (scheduler.snapshot().queuedJobs() != 0) {
+            complete(reference, scheduler, assertDispatches(reference.dispatchUpTo(2), scheduler.dispatchUpTo(2)));
+        }
+        assertEquals(reference.snapshot(), scheduler.snapshot());
+    }
+
+    @Test
     void failedRebaseLeavesEveryHiddenNumericAndOrderingFieldUnchanged()
             throws NumericLimitException, ReflectiveOperationException {
         RejectionFixture fixture = rejectionFixture(false);

@@ -96,9 +96,10 @@ work while preserving the ordering within each busy period.
 Cancellation is a library extension rather than a result supplied by the SFQ
 or SFQ(D) papers. The default policy keeps the tags assigned at admission, so a
 cancelled queued cost remains virtual debt until global idle. The opt-in refund
-policy instead recomputes the later queued suffix of that flow at the
+policy instead logically recomputes the later queued suffix of that flow at the
 cancellation linearization point. It does not undo an earlier dispatch or
-rewrite virtual-time history.
+rewrite virtual-time history. The implementation may defer tag materialization
+until head promotion while preserving this exact transition.
 
 Exact refund must not turn cancellation into a fallible cleanup operation. The
 refund policy therefore narrows admission: before accepting a job, the library
