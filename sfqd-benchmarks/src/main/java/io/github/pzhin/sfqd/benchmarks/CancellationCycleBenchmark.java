@@ -47,6 +47,10 @@ public class CancellationCycleBenchmark {
         @Param({"1", "8", "64", "256"})
         private int depth;
 
+        /** Queued jobs per active flow. */
+        @Param({"2", "250", "2500", "20000"})
+        private int queueLength = 2;
+
         /** Deterministic workload distribution. */
         @Param
         private Scenario scenario;
@@ -72,7 +76,7 @@ public class CancellationCycleBenchmark {
         /** Creates the bounded caller and scheduler queues outside measurements. */
         @Setup(Level.Trial)
         public void setupTrial() {
-            fixture = new Fixture(flowCount, depth, scenario, 0, 2, cancellationAccounting);
+            fixture = new Fixture(flowCount, depth, scenario, 0, queueLength, cancellationAccounting);
         }
 
         /** Selects and removes caller-side target bookkeeping outside the timed cycle. */

@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.2.0 - 2026-09-30
+
+Removes per-flow queue scans from ordinary refundable admission and queued
+cancellation, preventing long queues from multiplying their lock-held work.
+
+### Changed
+
+- refund-mode enqueue and cancellation now update an AVL multiset of live
+  costs in `O(log K)` time, plus head-index maintenance where applicable;
+- exact queued tags are materialized on head promotion; dispatch adds
+  `O(log K)` per selected job to maintain the cost aggregate;
+- incremental sum/gcd admission preserves the exact existing refund-closure
+  domain, including denominator-factor removal after cancellation or dispatch;
+- JMH cancellation cycles now expose per-flow queue length as a parameter.
+
+### Verification and compatibility
+
+- adds long-queue differential, cost-aggregate, and cancellation-before-rebase
+  regression coverage;
+- preserves public signatures, exact scheduling order, numeric budgets, atomic
+  rejection, and default charge-reserved accounting;
+- canonical rebasing remains transactional and linear in queued jobs plus
+  registered flows; the scheduler still uses one lock;
+- no application-specific throughput or deadline guarantee is introduced.
+
 ## 1.1.0 - 2026-08-30
 
 Adds opt-in virtual-cost refunds for queued cancellation while preserving the

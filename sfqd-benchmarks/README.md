@@ -75,7 +75,11 @@ metric and the normalization.
 ### Cancellation cycles
 
 `CancellationCycleBenchmark` measures `cancel -> enqueue replacement`. The
-score belongs to the combined cycle, not cancellation alone. The
+score belongs to the combined cycle, not cancellation alone. `queueLength`
+selects 2, 250, 2,500, or 20,000 jobs per active flow. For a bounded long-queue
+comparison use `-p flowCount=1 -p depth=16 -p scenario=UNIFORM -p target=HEAD`
+and vary `queueLength` under both policies; do not combine every large flow
+count with every large per-flow queue on a memory-limited machine. The
 `cancellationAccounting` parameter selects `CHARGE_RESERVED_COST` or
 `REFUND_CANCELLED_COST`; the same policy dimension is present in isolated
 head/non-head cancellation latency, terminal idle-reset cancellation, and
